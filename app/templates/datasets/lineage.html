@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+
+{% block title %}Dataset Lineage - Data Catalog{% endblock %}
+
+{% block head %}
+<style>
+    .lineage-container {
+        width: 100%;
+        height: 700px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    
+    .node {
+        cursor: pointer;
+    }
+    
+    .node circle {
+        stroke: #fff;
+        stroke-width: 2px;
+    }
+    
+    .node.deleted circle {
+        stroke-dasharray: 5;
+        fill-opacity: 0.5;
+    }
+    
+    .node text {
+        font-size: 12px;
+    }
+    
+    .link {
+        fill: none;
+        stroke: #999;
+        stroke-opacity: 0.6;
+        stroke-width: 2px;
+    }
+    
+    .tooltip {
+        position: absolute;
+        background-color: white;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 10px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        pointer-events: none;
+        z-index: 10;
+    }
+    
+    .controls {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(255,255,255,0.8);
+        border-radius: 5px;
+        padding: 10px;
+        box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        z-index: 5;
+    }
+    
+    .legend {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background: rgba(255,255,255,0.8);
+        border-radius: 5px;
+        padding: 10px;
+        box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        z-index: 5;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+    
+    .legend-color {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dataset Lineage Visualization</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="form-check form-switch ms-3 d-flex align-items-center">
+            <input class="form-check-input" type="checkbox" id="showDeletedSwitch" {% if show_deleted %}checked{% endif %}>
+            <label class="form-check-label ms-2" for="showDeletedSwitch">Show deleted datasets</label>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <p>This visualization shows the relationships between dataset versions over time. Nodes represent datasets, and links represent version relationships.</p>
+                <p>You can drag nodes to rearrange the visualization, zoom in/out, and hover over nodes to see more information.</p>
+                {% if show_deleted %}
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle"></i> 
+                    Deleted datasets are shown with dashed borders and reduced opacity.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="position-relative">
+            <div id="lineageVisualization" class="lineage-container">
+                <!-- D3.js visualization will be rendered here -->
+            </div>
+            
+            <div class="controls">
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="groupByBase" checked>
+                    <label class="form-check-label" for="groupByBase">
+                        Group by dataset family
+                    </label>
+                </div>
+                
+                <button id="resetZoom" class="btn btn-sm btn-outline-secondary">Reset View</button>
+            </div>            <div class="legend">
+                <h6>Legend</h6>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #4285f4;"></div>
+                    <span>Active Dataset</span>
+                </div>
+                {% if show_deleted %}
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #dc3545; border: 2px dashed white;"></div>
+                    <span>Deleted Dataset</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Data from server
+    const nodes = {{ nodes|tojson }};
+    const links = {{ links|tojson }};
+    
+    // Get container dimensions
+    const container = document.getElementById('lineageVisualization');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    
+    // Create SVG
+    const svg = d3.select('#lineageVisualization')
+        .append('svg')
+        .attr('width', '100%')
+        .attr('height', '100%')
+        .attr('viewBox', [0, 0, width, height])
+        .call(d3.zoom().on('zoom', function(event) {
+            g.attr('transform', event.transform);
+        }));
+        
+    const g = svg.append('g');
+    
+    // Create tooltip
+    const tooltip = d3.select('#lineageVisualization')
+        .append('div')
+        .attr('class', 'tooltip')
+        .style('opacity', 0);
+    
+    // Define arrow marker for links
+    svg.append('defs').append('marker')
+        .attr('id', 'arrow')
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 20)
+        .attr('refY', 0)
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,-5L10,0L0,5')
+        .attr('fill', '#999');
+    
+    // Create links
+    const link = g.append('g')
+        .attr('class', 'links')
+        .selectAll('path')
+        .data(links)
+        .enter().append('path')
+        .attr('class', 'link')
+        .attr('marker-end', 'url(#arrow)');
+      // Create nodes
+    const node = g.append('g')
+        .attr('class', 'nodes')
+        .selectAll('g')
+        .data(nodes)
+        .enter().append('g')
+        .attr('class', d => d.is_deleted ? 'node deleted' : 'node') // Add special class for deleted nodes
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended)
+        );
+    
+    // Add circles to nodes
+    node.append('circle')
+        .attr('r', 12)
+        .attr('fill', d => getColorForDataset(d))
+        .on('mouseover', function(event, d) {
+            tooltip.transition()
+                .duration(200)
+                .style('opacity', 0.9);
+                  // Create tooltip content
+            let content = `
+                <div>
+                    <h5>${d.name} ${d.is_deleted ? '<span class="badge bg-danger">Deleted</span>' : ''}</h5>
+                    <p><strong>Version:</strong> ${d.version}</p>
+                    <p><strong>Tags:</strong> ${d.tags.join(', ') || 'None'}</p>
+                    ${d.is_deleted ? '<p class="text-danger"><strong>Status:</strong> Deleted</p>' : ''}
+                </div>
+            `;
+            
+            tooltip.html(content)
+                .style('left', (event.pageX + 10) + 'px')
+                .style('top', (event.pageY - 28) + 'px');
+                
+            // Highlight connected nodes
+            highlightConnections(d.id);
+        })
+        .on('mouseout', function() {
+            tooltip.transition()
+                .duration(500)
+                .style('opacity', 0);
+                
+            // Remove highlighting
+            restoreGraph();
+        })
+        .on('click', function(event, d) {
+            // Navigate to dataset view when clicked
+            window.location.href = `/datasets/${d.id}`;
+        });
+    
+    // Add version labels to nodes
+    node.append('text')
+        .attr('dy', 4)
+        .attr('text-anchor', 'middle')
+        .text(d => d.version)
+        .attr('fill', 'white')
+        .attr('font-size', '10px');
+        
+    // Add dataset name labels
+    node.append('text')
+        .attr('dy', -20)
+        .attr('text-anchor', 'middle')
+        .text(d => truncateName(d.name))
+        .attr('fill', '#333')
+        .attr('font-size', '12px');
+    
+    // Set up force simulation
+    const simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d => d.id).distance(100))
+        .force('charge', d3.forceManyBody().strength(-300))
+        .force('center', d3.forceCenter(width / 2, height / 2));
+    
+    // Group datasets by base_name if checkbox is checked
+    function updateLayout() {
+        const groupByBase = document.getElementById('groupByBase').checked;
+        
+        if (groupByBase) {
+            // Group by base_name
+            simulation
+                .force('x', d3.forceX().x(d => {
+                    // Hash the base_name to get a consistent x position
+                    const hash = hashString(d.base_name);
+                    return width * (hash / 100 % 0.8 + 0.1);
+                }).strength(0.5))
+                .force('y', d3.forceY(height / 2).strength(0.1))
+                .alpha(1).restart();
+        } else {
+            // Default force layout
+            simulation
+                .force('x', d3.forceX(width / 2).strength(0.05))
+                .force('y', d3.forceY(height / 2).strength(0.05))
+                .alpha(1).restart();
+        }
+    }
+    
+    // Hook up the checkbox
+    document.getElementById('groupByBase').addEventListener('change', updateLayout);
+    
+    // Reset zoom button
+    document.getElementById('resetZoom').addEventListener('click', function() {
+        svg.transition().duration(750).call(
+            d3.zoom().transform,
+            d3.zoomIdentity
+        );
+    });
+    
+    // Initial layout setup
+    updateLayout();
+    
+    // Handle tick events
+    simulation.on('tick', () => {
+        link.attr('d', d => {
+            const dx = d.target.x - d.source.x;
+            const dy = d.target.y - d.source.y;
+            const dr = Math.sqrt(dx * dx + dy * dy);
+            
+            return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+        });
+        
+        node.attr('transform', d => `translate(${d.x},${d.y})`);
+    });
+    
+    // Drag functions
+    function dragstarted(event) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+    }
+    
+    function dragged(event) {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
+    }
+    
+    function dragended(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = null;
+        event.subject.fy = null;
+    }
+      // Helper functions
+    function getColorForDataset(d) {
+        // Return red for deleted datasets
+        if (d.is_deleted) {
+            return '#dc3545'; // Bootstrap danger/red color
+        }
+        
+        // Use a consistent color for each dataset base_name
+        const hash = hashString(d.base_name);
+        const hue = hash % 360;
+        return `hsl(${hue}, 70%, 60%)`;
+    }
+    
+    function truncateName(name) {
+        return name.length > 20 ? name.substring(0, 17) + '...' : name;
+    }
+    
+    function hashString(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return Math.abs(hash);
+    }
+    
+    function highlightConnections(nodeId) {
+        // Fade all nodes and links
+        node.style('opacity', 0.2);
+        link.style('opacity', 0.1);
+        
+        // Build a set of connected nodes
+        const connected = new Set();
+        connected.add(nodeId);
+        
+        // Add direct connections (both directions)
+        links.forEach(l => {
+            if (l.source.id === nodeId || l.source === nodeId) {
+                connected.add(typeof l.target === 'object' ? l.target.id : l.target);
+            }
+            if (l.target.id === nodeId || l.target === nodeId) {
+                connected.add(typeof l.source === 'object' ? l.source.id : l.source);
+            }
+        });
+        
+        // Highlight connected nodes
+        node.filter(d => connected.has(d.id))
+            .style('opacity', 1);
+            
+        // Highlight connected links
+        link.filter(l => {
+            const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+            const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+            return connected.has(sourceId) && connected.has(targetId);
+        }).style('opacity', 0.6).style('stroke-width', '3px');
+    }
+      function restoreGraph() {
+        // Restore all nodes and links to original state
+        node.style('opacity', 1);
+        link.style('opacity', 0.6).style('stroke-width', '2px');
+    }
+    
+    // Handle show/hide deleted datasets toggle
+    const showDeletedSwitch = document.getElementById('showDeletedSwitch');
+    showDeletedSwitch.addEventListener('change', function() {
+        // Redirect to the same page with the show_deleted parameter
+        const url = new URL(window.location.href);
+        url.searchParams.set('show_deleted', this.checked);
+        window.location.href = url.toString();
+    });
+});
+</script>
+{% endblock %}

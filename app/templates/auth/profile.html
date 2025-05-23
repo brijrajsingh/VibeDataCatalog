@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}User Profile - Data Catalog{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">User Profile</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-body text-center">
+                <img src="https://via.placeholder.com/150" class="rounded-circle mb-3" alt="Profile Image">
+                <h3>{{ current_user.username }}</h3>
+                <p class="text-muted">{{ current_user.email }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>My Datasets</h5>
+            </div>
+            <div class="card-body">
+                <div id="my-datasets-loading">Loading...</div>
+                <div id="my-datasets" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5>Recent Activity</h5>
+            </div>
+            <div class="card-body">
+                <div id="my-activity-loading">Loading...</div>
+                <div id="my-activity" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load user datasets
+    fetch('/api/my_datasets')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('my-datasets');
+            document.getElementById('my-datasets-loading').style.display = 'none';
+            container.style.display = 'block';
+            
+            if (data.datasets.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center p-3">
+                        <p>You haven't created any datasets yet.</p>
+                        <a href="{{ url_for('datasets.register_dataset') }}" class="btn btn-primary">Register a Dataset</a>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Create table
+            const table = document.createElement('table');
+            table.className = 'table table-hover';
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Version</th>
+                        <th>Files</th>
+                        <th>Created</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            `;
+            
+            const tbody = table.querySelector('tbody');
+            
+            data.datasets.forEach(dataset => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><a href="/datasets/${dataset.id}">${dataset.name}</a></td>
+                    <td>v${dataset.version}</td>
+                    <td>${dataset.files ? dataset.files.length : 0}</td>
+                    <td>${dataset.created_at.replace('T', ' ').substring(0, 16)}</td>
+                    <td>
+                        <a href="/datasets/${dataset.id}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            container.appendChild(table);
+        })
+        .catch(error => {
+            console.error('Error loading user datasets:', error);
+            document.getElementById('my-datasets-loading').textContent = 'Error loading datasets';
+        });
+        
+    // Load user activity
+    fetch('/api/my_activity')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('my-activity');
+            document.getElementById('my-activity-loading').style.display = 'none';
+            container.style.display = 'block';
+            
+            if (data.activities.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center p-3">
+                        <p>No recent activity.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Create activity list
+            const list = document.createElement('ul');
+            list.className = 'list-group';
+            
+            data.activities.forEach(activity => {
+                const item = document.createElement('li');
+                item.className = 'list-group-item';
+                item.innerHTML = `
+                    <div class="d-flex w-100 justify-content-between">
+                        <div>
+                            <i class="bi ${getActivityIcon(activity.type)}"></i>
+                            ${activity.message}
+                        </div>
+                        <small>${formatTimestamp(activity.timestamp)}</small>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+            
+            container.appendChild(list);
+        })
+        .catch(error => {
+            console.error('Error loading user activity:', error);
+            document.getElementById('my-activity-loading').textContent = 'Error loading activity';
+        });
+        
+    // Helper functions
+    function getActivityIcon(type) {
+        const icons = {
+            'dataset_create': 'bi-plus-square',
+            'file_upload': 'bi-upload',
+            'dataset_version': 'bi-layers',
+            'dataset_view': 'bi-eye'
+        };
+        
+        return icons[type] || 'bi-activity';
+    }
+    
+    function formatTimestamp(timestamp) {
+        // Convert ISO timestamp to relative time like "2 hours ago"
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diff = now - date;
+        
+        const seconds = Math.floor(diff / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+        
+        if (days > 0) {
+            return days === 1 ? '1 day ago' : `${days} days ago`;
+        }
+        if (hours > 0) {
+            return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+        }
+        if (minutes > 0) {
+            return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`;
+        }
+        return 'Just now';
+    }
+});
+</script>
+{% endblock %}

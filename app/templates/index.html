@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Data Catalog{% endblock %}
+
+{% block content %}
+<div class="px-4 py-5 my-5 text-center">
+    <img class="d-block mx-auto mb-4" src="https://via.placeholder.com/80x80" alt="Logo" width="80" height="80">
+    <h1 class="display-5 fw-bold">Data Catalog & Lineage Tool</h1>
+    <div class="col-lg-6 mx-auto">
+        <p class="lead mb-4">
+            Easily register, manage, and discover your datasets with our data catalog. 
+            Keep track of data lineage as your datasets evolve through different versions.
+        </p>
+        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg px-4 gap-3">Go to Dashboard</a>
+                <a href="{{ url_for('datasets.register_dataset') }}" class="btn btn-outline-secondary btn-lg px-4">Register a Dataset</a>
+            {% else %}
+                <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-lg px-4 gap-3">Login</a>
+                <a href="{{ url_for('auth.signup') }}" class="btn btn-outline-secondary btn-lg px-4">Sign Up</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row g-4 py-5">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h2 class="card-title"><i class="bi bi-tag"></i> Tag & Categorize</h2>
+                    <p class="card-text">Apply tags to datasets for easy categorization and discovery. Organize your data assets with meaningful metadata.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h2 class="card-title"><i class="bi bi-diagram-3"></i> Track Lineage</h2>
+                    <p class="card-text">Follow the complete history and evolution of your datasets through different versions and transformations.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h2 class="card-title"><i class="bi bi-search"></i> Discover & Use</h2>
+                    <p class="card-text">Find relevant datasets with powerful search capabilities. Access data directly via Azure Blob Storage shared access links.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

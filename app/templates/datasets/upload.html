@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Upload File - {{ dataset.name }} - Data Catalog{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('datasets.list_datasets') }}">Datasets</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('datasets.view_dataset', dataset_id=dataset.id) }}">{{ dataset.name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Upload File</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Upload File to {{ dataset.name }}</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('datasets.upload_file', dataset_id=dataset.id) }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Select File</label>
+                        <input class="form-control" type="file" id="file" name="file" required>
+                        <div class="form-text">Upload CSV or Excel files for this dataset.</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Upload File</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>About This Dataset</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Name:</strong> {{ dataset.name }}</p>
+                <p><strong>Version:</strong> {{ dataset.version }}</p>
+                <p><strong>Existing Files:</strong> {{ dataset.files|length }}</p>
+                <p><strong>Tags:</strong>
+                    {% for tag in dataset.tags %}
+                    <span class="tag">{{ tag }}</span>
+                    {% endfor %}
+                    
+                    {% if not dataset.tags %}
+                    <em>No tags</em>
+                    {% endif %}
+                </p>
+                
+                <a href="{{ url_for('datasets.view_dataset', dataset_id=dataset.id) }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Dataset
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

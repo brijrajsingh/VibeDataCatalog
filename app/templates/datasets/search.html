@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Search Datasets - Data Catalog{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Search Datasets</h1>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <form action="{{ url_for('datasets.search_datasets') }}" method="get" class="row g-3">
+                    <div class="col-md-10">
+                        <input type="text" class="form-control" name="query" placeholder="Search datasets..." value="{{ query }}">
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">Search</button>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-text">
+                            <strong>Search tips:</strong> 
+                            <ul class="mb-0">
+                                <li>Use <code>tag:value</code> to search for datasets with specific tags (e.g., <code>tag:finance</code>)</li>
+                                <li>Use <code>by:username</code> to search for datasets created by a specific user</li>
+                                <li>Use <code>status:deleted</code> or <code>status:active</code> to filter by dataset status</li>
+                                <li>Combine terms: <code>sales tag:quarterly by:john</code></li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-check form-switch d-flex justify-content-end">
+                            <input class="form-check-input" type="checkbox" name="show_deleted" id="showDeletedSwitch" value="true" {% if show_deleted %}checked{% endif %}>
+                            <label class="form-check-label ms-2" for="showDeletedSwitch">Show deleted datasets</label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if query %}
+    {% if datasets %}
+    <div class="row">
+        <div class="col-md-12">
+            <h3>Search Results: {{ datasets|length }} dataset{{ 's' if datasets|length != 1 else '' }} found</h3>
+            
+            <div class="list-group">
+                {% for dataset in datasets %}
+                <a href="{{ url_for('datasets.view_dataset', dataset_id=dataset.id) }}" 
+                   class="list-group-item list-group-item-action {% if dataset.is_deleted %}list-group-item-light{% endif %}">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">
+                            {{ dataset.name }}
+                            {% if dataset.is_deleted %}
+                            <span class="badge bg-danger">Deleted</span>
+                            {% endif %}
+                        </h5>
+                        <small>Version {{ dataset.version }}</small>
+                    </div>
+                    <p class="mb-1">{{ dataset.description|truncate(200) }}</p>
+                    <div>
+                        {% for tag in dataset.tags %}
+                        <span class="tag">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                    <small>Created by {{ dataset.created_by }} on {{ dataset.created_at|replace('T', ' ')|truncate(16, True, '') }}</small>
+                    {% if dataset.is_deleted %}
+                    <small class="text-danger d-block">Deleted by {{ dataset.deleted_by }} on {{ dataset.deleted_at|replace('T', ' ')|truncate(16, True, '') }}</small>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <h4 class="alert-heading">No datasets found!</h4>
+        <p>Your search for "{{ query }}" did not match any datasets.</p>
+        <hr>
+        <p class="mb-0">
+            Try using different search terms or <a href="{{ url_for('datasets.register_dataset') }}" class="alert-link">register a new dataset</a>.
+        </p>
+    </div>
+    {% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Automatically submit form when "show deleted" toggle changes
+        const showDeletedSwitch = document.getElementById('showDeletedSwitch');
+        showDeletedSwitch.addEventListener('change', function() {
+            this.closest('form').submit();
+        });
+    });
+</script>
+{% endblock %}

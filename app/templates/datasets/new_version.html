@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}New Version - {{ dataset.name }} - Data Catalog{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('datasets.list_datasets') }}">Datasets</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('datasets.view_dataset', dataset_id=dataset.id) }}">{{ dataset.name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">New Version</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Create New Version of {{ dataset.name }}</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('datasets.new_version', dataset_id=dataset.id) }}">
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" required>{{ dataset.description }}</textarea>
+                        <div class="form-text">You can update the description for the new version.</div>
+                    </div>
+                      <div class="mb-3">
+                        <label for="tag-input" class="form-label">Tags</label>
+                        <div class="input-group mb-2">
+                            <input type="text" class="form-control" id="tag-input" placeholder="Enter a tag">
+                            <button class="btn btn-outline-secondary" type="button" id="add-tag-btn">Add Tag</button>
+                        </div>
+                        <div id="tags-container" class="d-flex flex-wrap gap-2 mb-2">
+                            <!-- Tags will be displayed here -->
+                        </div>
+                        <div class="form-text">Click "Add Tag" after typing each tag. Click on a tag to remove it. The new version inherits tags from the previous version.</div>
+                        <!-- Hidden input to store the actual tags that will be submitted -->
+                        <input type="hidden" id="tags" name="tags" value="{{ dataset.tags|join(', ') }}">
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Create New Version</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>About Creating a New Version</h5>
+            </div>
+            <div class="card-body">
+                <p>Creating a new version will:</p>
+                <ul>
+                    <li>Increment the version number</li>
+                    <li>Inherit tags from the previous version</li>
+                    <li>Track lineage back to the original dataset</li>
+                    <li>Start with no files (you'll need to upload new files)</li>
+                </ul>
+                
+                <p>Use versioning to keep track of changes to your dataset over time.</p>
+                
+                <a href="{{ url_for('datasets.view_dataset', dataset_id=dataset.id) }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Dataset
+                </a>
+            </div>        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const tagInput = document.getElementById('tag-input');
+        const addTagBtn = document.getElementById('add-tag-btn');
+        const tagsContainer = document.getElementById('tags-container');
+        const hiddenTagsInput = document.getElementById('tags');
+        
+        // Initialize the tags array from the existing value
+        let tags = hiddenTagsInput.value ? hiddenTagsInput.value.split(',').map(tag => tag.trim()) : [];
+        
+        // Display initial tags
+        function initializeTags() {
+            tags.forEach(tagValue => {
+                if (tagValue) {
+                    const tagElement = document.createElement('span');
+                    tagElement.className = 'badge bg-primary py-2 px-3';
+                    tagElement.textContent = tagValue;
+                    tagElement.style.cursor = 'pointer';
+                    
+                    // Add click handler for removing tag
+                    tagElement.addEventListener('click', function() {
+                        const index = tags.indexOf(tagValue);
+                        if (index > -1) {
+                            tags.splice(index, 1);
+                            tagsContainer.removeChild(tagElement);
+                            updateHiddenInput();
+                        }
+                    });
+                    
+                    tagElement.setAttribute('title', 'Click to remove');
+                    tagsContainer.appendChild(tagElement);
+                }
+            });
+        }
+        
+        // Function to update the hidden input with the current tags
+        function updateHiddenInput() {
+            hiddenTagsInput.value = tags.join(',');
+        }
+        
+        // Function to add a new tag
+        function addTag() {
+            const tagValue = tagInput.value.trim();
+            
+            if (tagValue && !tags.includes(tagValue)) {
+                // Create tag element
+                const tagElement = document.createElement('span');
+                tagElement.className = 'badge bg-primary py-2 px-3';
+                tagElement.textContent = tagValue;
+                tagElement.style.cursor = 'pointer';
+                
+                // Add click handler for removing tag
+                tagElement.addEventListener('click', function() {
+                    const index = tags.indexOf(tagValue);
+                    if (index > -1) {
+                        tags.splice(index, 1);
+                        tagsContainer.removeChild(tagElement);
+                        updateHiddenInput();
+                    }
+                });
+                
+                // Add tooltip to indicate it can be clicked for removal
+                tagElement.setAttribute('title', 'Click to remove');
+                
+                // Append the new tag
+                tagsContainer.appendChild(tagElement);
+                tags.push(tagValue);
+                updateHiddenInput();
+                
+                // Clear the input
+                tagInput.value = '';
+                tagInput.focus();
+            }
+        }
+        
+        // Event listeners
+        addTagBtn.addEventListener('click', addTag);
+        
+        tagInput.addEventListener('keydown', function(e) {
+            // Add tag when Enter or comma is pressed
+            if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault();
+                addTag();
+            }
+        });
+        
+        // Form submission handling to make sure tags are included
+        document.querySelector('form').addEventListener('submit', function(e) {
+            updateHiddenInput();
+        });
+        
+        // Initialize tags from the hidden input
+        initializeTags();
+    });
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Data Catalog{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('datasets.register_dataset') }}" class="btn btn-sm btn-outline-primary">Register Dataset</a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Recently Added Datasets</h5>
+            </div>
+            <div class="card-body">
+                <div id="recent-datasets-loading">Loading...</div>
+                <div id="recent-datasets" class="list-group list-group-flush" style="display: none;">
+                    <!-- Will be populated via AJAX -->
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{{ url_for('datasets.list_datasets') }}" class="btn btn-sm btn-outline-secondary">View All</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Activity</h5>
+            </div>
+            <div class="card-body">
+                <div id="activities-loading">Loading...</div>
+                <div id="activities" class="list-group list-group-flush" style="display: none;">
+                    <!-- Will be populated via AJAX -->
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Popular Tags</h5>
+            </div>
+            <div class="card-body">
+                <div id="tags-loading">Loading...</div>
+                <div id="tags-cloud" style="display: none;">
+                    <!-- Will be populated via AJAX -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Dataset Distribution</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="datasets-chart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load recent datasets
+    fetch('/api/recent_datasets')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('recent-datasets');
+            document.getElementById('recent-datasets-loading').style.display = 'none';
+            container.style.display = 'block';
+            
+            if (data.datasets.length === 0) {
+                container.innerHTML = '<div class="text-center p-3">No datasets found</div>';
+                return;
+            }
+            
+            data.datasets.forEach(dataset => {
+                const item = document.createElement('a');
+                item.href = `/datasets/${dataset.id}`;
+                item.className = 'list-group-item list-group-item-action';
+                
+                const tagsHtml = dataset.tags.map(tag => 
+                    `<span class="tag">${tag}</span>`
+                ).join('');
+                
+                item.innerHTML = `
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">${dataset.name}</h5>
+                        <small>v${dataset.version}</small>
+                    </div>
+                    <p class="mb-1">${dataset.description.substring(0, 100)}${dataset.description.length > 100 ? '...' : ''}</p>
+                    <div class="mt-2">${tagsHtml}</div>
+                `;
+                
+                container.appendChild(item);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading recent datasets:', error);
+            document.getElementById('recent-datasets-loading').textContent = 'Error loading datasets';
+        });
+        
+    // Load activities
+    fetch('/api/activities')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('activities');
+            document.getElementById('activities-loading').style.display = 'none';
+            container.style.display = 'block';
+            
+            if (data.activities.length === 0) {
+                container.innerHTML = '<div class="text-center p-3">No recent activities</div>';
+                return;
+            }
+            
+            data.activities.forEach(activity => {
+                const item = document.createElement('div');
+                item.className = 'list-group-item';
+                
+                item.innerHTML = `
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">${activity.message}</h6>
+                        <small>${activity.timestamp}</small>
+                    </div>
+                    <p class="mb-1">by ${activity.username}</p>
+                `;
+                
+                container.appendChild(item);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading activities:', error);
+            document.getElementById('activities-loading').textContent = 'Error loading activities';
+        });
+        
+    // Load tags
+    fetch('/api/tags')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('tags-cloud');
+            document.getElementById('tags-loading').style.display = 'none';
+            container.style.display = 'block';
+            
+            if (Object.keys(data.tags).length === 0) {
+                container.innerHTML = '<div class="text-center p-3">No tags found</div>';
+                return;
+            }
+            
+            // Sort tags by count
+            const sortedTags = Object.entries(data.tags)
+                .sort((a, b) => b[1] - a[1]);
+            
+            sortedTags.forEach(([tag, count]) => {
+                const tagElement = document.createElement('a');
+                tagElement.href = `/datasets/search?query=tag:${tag}`;
+                tagElement.className = 'tag';
+                tagElement.style.fontSize = `${Math.max(100, 100 + count * 10)}%`;
+                tagElement.textContent = tag;
+                
+                container.appendChild(tagElement);
+                container.appendChild(document.createTextNode(' '));
+            });
+        })
+        .catch(error => {
+            console.error('Error loading tags:', error);
+            document.getElementById('tags-loading').textContent = 'Error loading tags';
+        });
+        
+    // Create chart
+    fetch('/api/dataset_stats')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('datasets-chart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'Datasets by Month',
+                        data: data.values,
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Datasets'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Month'
+                            }
+                        }
+                    }
+                }
+            });
+        })
+        .catch(error => {
+            console.error('Error loading dataset statistics:', error);
+        });
+});
+</script>
+{% endblock %}

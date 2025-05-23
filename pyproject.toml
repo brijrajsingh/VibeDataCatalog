@@ -1,0 +1,18 @@
+[project]
+name = "datacatalog"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "azure-cosmos==4.5.1",
+    "azure-storage-blob==12.19.0",
+    "flask==2.3.3",
+    "flask-login==0.6.2",
+    "flask-wtf==1.2.1",
+    "openpyxl==3.1.2",
+    "pandas>=2.2.3",
+    "pyjwt==2.8.0",
+    "python-dotenv==1.0.0",
+    "werkzeug==2.3.7",
+]

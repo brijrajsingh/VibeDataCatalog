@@ -1,0 +1,13 @@
+flask==2.3.3
+azure-cosmos==4.5.1
+azure-storage-blob==12.19.0
+python-dotenv==1.0.0
+pandas==2.0.3
+openpyxl==3.1.2  # For .xlsx files
+xlrd==2.0.1       # For .xls files
+flask-wtf==1.2.1
+werkzeug==2.3.7
+flask-login==0.6.2
+pyjwt==2.8.0
+chardet==5.1.0
+numpy==1.25.2     # For numerical operations
