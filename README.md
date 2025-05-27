@@ -144,6 +144,20 @@ A web application for managing datasets, tracking data lineage, and discovering 
    - Drag nodes to rearrange the visualization
    - Group datasets by family or view all relationships
 
+## Screenshots
+
+### Dashboard
+![Dashboard](images/dashboard.png)
+*Main dashboard showing recent datasets, activities, and statistics*
+
+### Dataset View
+![Dataset View](images/DatasetView.png)
+*Detailed view of a dataset with metadata, files, and available actions*
+
+### Lineage Visualization
+![Lineage Visualization](images/Lineage.png)
+*Interactive visualization of dataset relationships and version history*
+
 ## License
 
 MIT License
