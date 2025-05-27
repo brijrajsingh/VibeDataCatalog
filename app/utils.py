@@ -1,19 +1,21 @@
 import os
 from azure.cosmos import CosmosClient
+from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 import pandas as pd
 import io
 
 # Azure Configuration
 ENDPOINT = os.environ.get("COSMOSDB_ENDPOINT")
-KEY = os.environ.get("COSMOSDB_KEY")
+# KEY = os.environ.get("COSMOSDB_KEY")
 DATABASE_NAME = os.environ.get("COSMOSDB_DATABASE")
 CONTAINER_NAME = os.environ.get("COSMOSDB_CONTAINER")
 AZURE_STORAGE_CONNECTION_STRING = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
 AZURE_BLOB_CONTAINER = os.environ.get("AZURE_BLOB_CONTAINER")
 
+credential = DefaultAzureCredential()
 # Initialize CosmosDB client
-client = CosmosClient(ENDPOINT, credential=KEY)
+client = CosmosClient(ENDPOINT, credential=credential)
 database = client.get_database_client(DATABASE_NAME)
 container = database.get_container_client(CONTAINER_NAME)
 

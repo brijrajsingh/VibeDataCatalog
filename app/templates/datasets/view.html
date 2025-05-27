@@ -73,16 +73,43 @@
                 <div class="row mb-3">
                     <div class="col-md-3 fw-bold">Created At</div>
                     <div class="col-md-9">{{ dataset.created_at|replace('T', ' ') }}</div>
-                </div>
-                <div class="row mb-3">
+                </div>                <div class="row mb-3">
                     <div class="col-md-3 fw-bold">Tags</div>
                     <div class="col-md-9">
-                        {% for tag in dataset.tags %}
-                        <span class="tag">{{ tag }}</span>
-                        {% endfor %}
+                        <div id="tags-display" class="{% if not dataset.is_deleted %}mb-2{% endif %}">
+                            {% for tag in dataset.tags %}
+                            <span class="tag">{{ tag }}</span>
+                            {% endfor %}
+                            
+                            {% if not dataset.tags %}
+                            <em>No tags</em>
+                            {% endif %}
+                        </div>
                         
-                        {% if not dataset.tags %}
-                        <em>No tags</em>
+                        {% if not dataset.is_deleted %}
+                        <button id="edit-tags-btn" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-pencil"></i> Edit Tags
+                        </button>
+                        
+                        <div id="tags-editor" class="mt-3" style="display: none;">
+                            <form method="POST" action="{{ url_for('datasets.update_tags', dataset_id=dataset.id) }}">
+                                <div class="input-group mb-2">
+                                    <input type="text" class="form-control" id="tag-input" placeholder="Enter a tag">
+                                    <button class="btn btn-outline-secondary" type="button" id="add-tag-btn">Add Tag</button>
+                                </div>
+                                <div id="tags-container" class="d-flex flex-wrap gap-2 mb-2">
+                                    <!-- Tags will be displayed here -->
+                                </div>
+                                <div class="form-text mb-2">Click "Add Tag" after typing each tag. Click on a tag to remove it.</div>
+                                <!-- Hidden input to store the actual tags that will be submitted -->
+                                <input type="hidden" id="tags" name="tags">
+                                
+                                <div>
+                                    <button type="submit" class="btn btn-sm btn-primary">Save Tags</button>
+                                    <button type="button" id="cancel-edit-tags-btn" class="btn btn-sm btn-outline-secondary">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
                         {% endif %}
                     </div>
                 </div>
@@ -248,34 +275,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 await navigator.clipboard.writeText(data.url);
                 
                 // Show success state
-                this.innerHTML = '<i class="bi bi-check-lg"></i>';
+                this.innerHTML = '<i class="bi bi-check"></i>';
                 this.classList.remove('btn-outline-info');
-                this.classList.add('btn-success');
-                
-                // Track the activity
-                fetch('/api/track_activity', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        activity_type: 'copy_direct_link',
-                        message: `Copied direct link for file '${filename}'`,
-                        dataset_id: datasetId,
-                        file_id: fileId
-                    })
-                });
+                this.classList.add('btn-danger');
                 
                 // Reset button after 3 seconds
                 setTimeout(() => {
-                    this.innerHTML = originalHtml;
-                    this.classList.remove('btn-success');
+                    this.innerHTML = '<i class="bi bi-clipboard"></i>';
+                    this.classList.remove('btn-danger');
                     this.classList.add('btn-outline-info');
                     this.disabled = false;
                 }, 3000);
             } catch (error) {
                 console.error('Error copying link:', error);
-                this.innerHTML = '<i class="bi bi-exclamation-triangle"></i>';
+                this.innerHTML = '<i class="bi bi-exclamation-circle"></i>';
                 this.classList.remove('btn-outline-info');
                 this.classList.add('btn-danger');
                 
@@ -288,6 +301,105 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 3000);
             }
         });
+    });
+
+    // Tags editing functionality
+    const editTagsBtn = document.getElementById('edit-tags-btn');
+    const cancelEditTagsBtn = document.getElementById('cancel-edit-tags-btn');
+    const tagsDisplay = document.getElementById('tags-display');
+    const tagsEditor = document.getElementById('tags-editor');
+    const tagInput = document.getElementById('tag-input');
+    const addTagBtn = document.getElementById('add-tag-btn');
+    const tagsContainer = document.getElementById('tags-container');
+    const hiddenTagsInput = document.getElementById('tags');
+    
+    // Array to store the current tags
+    let tags = [];
+    
+    // Initialize tags from existing tags
+    {% for tag in dataset.tags %}
+    tags.push("{{ tag }}");
+    {% endfor %}
+    
+    // Function to update the hidden input with the current tags
+    function updateHiddenInput() {
+        hiddenTagsInput.value = tags.join(',');
+    }
+    
+    // Function to render tags in the editor
+    function renderTags() {
+        // Clear existing tags
+        tagsContainer.innerHTML = '';
+        
+        // Add each tag to the container
+        tags.forEach(tagValue => {
+            const tagElement = document.createElement('span');
+            tagElement.className = 'badge bg-primary py-2 px-3';
+            tagElement.textContent = tagValue;
+            tagElement.style.cursor = 'pointer';
+            
+            // Add click handler for removing tag
+            tagElement.addEventListener('click', function() {
+                const index = tags.indexOf(tagValue);
+                if (index > -1) {
+                    tags.splice(index, 1);
+                    tagsContainer.removeChild(tagElement);
+                    updateHiddenInput();
+                }
+            });
+            
+            // Add tooltip to indicate it can be clicked for removal
+            tagElement.setAttribute('title', 'Click to remove');
+            
+            // Append the new tag
+            tagsContainer.appendChild(tagElement);
+        });
+        
+        // Update hidden input
+        updateHiddenInput();
+    }
+    
+    // Function to add a new tag
+    function addTag() {
+        const tagValue = tagInput.value.trim();
+        
+        if (tagValue && !tags.includes(tagValue)) {
+            tags.push(tagValue);
+            renderTags();
+            
+            // Clear the input
+            tagInput.value = '';
+            tagInput.focus();
+        }
+    }
+    
+    // Show tags editor
+    editTagsBtn.addEventListener('click', function() {
+        tagsDisplay.style.display = 'none';
+        tagsEditor.style.display = 'block';
+        editTagsBtn.style.display = 'none';
+        
+        // Initialize tags editor
+        renderTags();
+        tagInput.focus();
+    });
+    
+    // Cancel tag editing
+    cancelEditTagsBtn.addEventListener('click', function() {
+        tagsDisplay.style.display = 'block';
+        tagsEditor.style.display = 'none';
+        editTagsBtn.style.display = 'inline-block';
+    });
+    
+    // Event listeners for adding tags
+    addTagBtn.addEventListener('click', addTag);
+    
+    tagInput.addEventListener('keydown', function(e) {
+        // Add tag when Enter or comma is pressed
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            addTag();
+        }
     });
 });
 </script>

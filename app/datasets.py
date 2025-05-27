@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
 from azure.cosmos import CosmosClient
+from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient, BlobClient, generate_blob_sas, BlobSasPermissions
 from datetime import datetime, timedelta
 import uuid
@@ -10,14 +11,18 @@ import io
 
 # Azure Configuration
 ENDPOINT = os.environ.get("COSMOSDB_ENDPOINT")
-KEY = os.environ.get("COSMOSDB_KEY")
+# KEY = os.environ.get("COSMOSDB_KEY")
 DATABASE_NAME = os.environ.get("COSMOSDB_DATABASE")
 CONTAINER_NAME = os.environ.get("COSMOSDB_CONTAINER")
 AZURE_STORAGE_CONNECTION_STRING = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
 AZURE_BLOB_CONTAINER = os.environ.get("AZURE_BLOB_CONTAINER")
 
 # Initialize CosmosDB client
-client = CosmosClient(ENDPOINT, credential=KEY)
+
+credential = DefaultAzureCredential()
+
+client = CosmosClient(ENDPOINT, credential=credential)
+
 database = client.get_database_client(DATABASE_NAME)
 container = database.get_container_client(CONTAINER_NAME)
 
@@ -573,4 +578,51 @@ def restore_dataset(dataset_id):
         pass
     
     flash(f"Dataset '{dataset['name']}' version {dataset['version']} has been restored", 'success')
+    return redirect(url_for('datasets.view_dataset', dataset_id=dataset_id))
+
+@datasets_bp.route('/<dataset_id>/update_tags', methods=['POST'])
+@login_required
+def update_tags(dataset_id):
+    """Update tags for an existing dataset"""
+    query = f"SELECT * FROM c WHERE c.id = '{dataset_id}'"
+    items = list(container.query_items(query=query, enable_cross_partition_query=True))
+    
+    if not items:
+        flash('Dataset not found', 'error')
+        return redirect(url_for('datasets.list_datasets'))
+    
+    dataset = items[0]
+    
+    # Check if the dataset is deleted
+    if dataset.get('is_deleted', False):
+        flash('Cannot update tags for a deleted dataset', 'error')
+        return redirect(url_for('datasets.view_dataset', dataset_id=dataset_id))
+    
+    # Parse tags from form
+    tags = [tag.strip() for tag in request.form.get('tags', '').split(',') if tag.strip()]
+    
+    # Update tags in dataset
+    dataset['tags'] = tags
+    
+    # Save the updated dataset
+    container.upsert_item(dataset)
+    
+    # Track this activity
+    try:
+        activity = {
+            'id': str(uuid.uuid4()),
+            'type': 'activity',
+            'username': current_user.username,
+            'timestamp': datetime.utcnow().isoformat(),
+            'activity_type': 'dataset_update_tags',
+            'message': f"Updated tags for dataset '{dataset['name']}' (version {dataset['version']})",
+            'dataset_id': dataset_id,
+            'dataset_name': dataset['name']
+        }
+        container.create_item(body=activity)
+    except Exception as e:
+        # Log error but don't fail the operation
+        current_app.logger.error(f"Failed to log activity: {str(e)}")
+    
+    flash('Tags updated successfully', 'success')
     return redirect(url_for('datasets.view_dataset', dataset_id=dataset_id))

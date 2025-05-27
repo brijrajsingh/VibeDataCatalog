@@ -11,13 +11,14 @@ from azure.cosmos import CosmosClient, exceptions
 from dotenv import load_dotenv
 import uuid
 from werkzeug.security import generate_password_hash
+from azure.identity import DefaultAzureCredential
 
 # Load environment variables
 load_dotenv()
 
 # Azure Cosmos DB settings
 ENDPOINT = os.environ.get("COSMOSDB_ENDPOINT")
-KEY = os.environ.get("COSMOSDB_KEY")
+# KEY = os.environ.get("COSMOSDB_KEY")
 DATABASE_NAME = os.environ.get("COSMOSDB_DATABASE", "datacatalog")
 CONTAINER_NAME = os.environ.get("COSMOSDB_CONTAINER", "metadata")
 
@@ -30,7 +31,8 @@ def main():
         return
     
     # Initialize the Cosmos client
-    client = CosmosClient(ENDPOINT, credential=KEY)
+    credential = DefaultAzureCredential()
+    client = CosmosClient(ENDPOINT, credential=credential)
     
     # Create database if it doesn't exist
     try:

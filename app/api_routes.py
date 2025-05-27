@@ -1,18 +1,21 @@
 from flask import Blueprint, jsonify, current_app as app, request
 from flask_login import login_required, current_user
 from azure.cosmos import CosmosClient
+from azure.identity import DefaultAzureCredential
 import os
 from datetime import datetime, timedelta
 import uuid
 
 # Azure Configuration
 ENDPOINT = os.environ.get("COSMOSDB_ENDPOINT")
-KEY = os.environ.get("COSMOSDB_KEY")
+# KEY = os.environ.get("COSMOSDB_KEY")
 DATABASE_NAME = os.environ.get("COSMOSDB_DATABASE")
 CONTAINER_NAME = os.environ.get("COSMOSDB_CONTAINER")
 
+credential = DefaultAzureCredential()
+
 # Initialize CosmosClient
-client = CosmosClient(ENDPOINT, credential=KEY)
+client = CosmosClient(ENDPOINT, credential=credential)
 database = client.get_database_client(DATABASE_NAME)
 container = database.get_container_client(CONTAINER_NAME)
 

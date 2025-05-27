@@ -4,15 +4,19 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import json
 import os
 from azure.cosmos import CosmosClient
+from azure.identity import DefaultAzureCredential
+
 
 # Configuration for Azure Cosmos DB
 ENDPOINT = os.environ.get("COSMOSDB_ENDPOINT")
-KEY = os.environ.get("COSMOSDB_KEY")
+# KEY = os.environ.get("COSMOSDB_KEY")
 DATABASE_NAME = os.environ.get("COSMOSDB_DATABASE")
 CONTAINER_NAME = os.environ.get("COSMOSDB_CONTAINER")
 
 # Initialize CosmosDB client
-client = CosmosClient(ENDPOINT, credential=KEY)
+credential = DefaultAzureCredential()
+client = CosmosClient(ENDPOINT, credential=credential)
+
 database = client.get_database_client(DATABASE_NAME)
 container = database.get_container_client(CONTAINER_NAME)
 
