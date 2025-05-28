@@ -37,21 +37,22 @@ A web application for managing datasets, tracking data lineage, and discovering 
    cp .env.example .env
    ```
 
-2. Update the `.env` file with your Azure credentials:
-   ```
+2. Update the `.env` file with your Azure credentials:   ```
    # Azure Settings
    COSMOSDB_ENDPOINT=your_cosmosdb_endpoint
-   COSMOSDB_KEY=your_cosmosdb_key
+   # Using Managed Identity - no key required
    COSMOSDB_DATABASE=datacatalog
-   COSMOSDB_CONTAINER=metadata
-
-   # Azure Blob Storage
-   AZURE_STORAGE_CONNECTION_STRING=your_storage_connection_string
+   COSMOSDB_CONTAINER=metadata   # Azure Blob Storage
+   # Using Managed Identity - no key required
+   AZURE_BLOB_ACCOUNT=your_storage_account_name
    AZURE_BLOB_CONTAINER=datasets
 
    # Flask Settings
    SECRET_KEY=your_random_secret_key
    FLASK_ENV=development
+   ```
+
+   > **Note for developers:** When running locally, make sure you're logged in with `az login` or Visual Studio authentication. DefaultAzureCredential will use your developer credentials instead of Managed Identity.
    ```
 
 ### Installation
@@ -98,12 +99,20 @@ A web application for managing datasets, tracking data lineage, and discovering 
 1. Create a Cosmos DB account in Azure Portal
 2. Create a database named `datacatalog`
 3. Create a container named `metadata` with partition key `/type`
+4. Set up RBAC permissions for your Managed Identity:
+   ```
+   .\setup_cosmos_permissions.ps1 -CosmosAccountName "your-cosmos-account" -ResourceGroupName "your-resource-group" -PrincipalId "your-managed-identity-principal-id"
+   ```
 
 ### Blob Storage
 
 1. Create a Storage Account in Azure Portal
 2. Create a Blob container named `datasets`
-3. Get the connection string from Access Keys in the Storage Account settings
+3. Set up RBAC permissions for your Managed Identity:
+   ```
+   .\setup_blob_permissions.ps1 -StorageAccountName "yourstorageaccount" -ResourceGroupName "your-resource-group" -PrincipalId "your-managed-identity-principal-id"
+   ```
+4. No connection strings or keys are required when using Managed Identity
 
 ## Usage Guide
 

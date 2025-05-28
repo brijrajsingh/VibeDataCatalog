@@ -7,20 +7,21 @@ import io
 
 # Azure Configuration
 ENDPOINT = os.environ.get("COSMOSDB_ENDPOINT")
-# KEY = os.environ.get("COSMOSDB_KEY")
 DATABASE_NAME = os.environ.get("COSMOSDB_DATABASE")
 CONTAINER_NAME = os.environ.get("COSMOSDB_CONTAINER")
-AZURE_STORAGE_CONNECTION_STRING = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
+AZURE_BLOB_ACCOUNT = os.environ.get("AZURE_BLOB_ACCOUNT")
 AZURE_BLOB_CONTAINER = os.environ.get("AZURE_BLOB_CONTAINER")
 
+# Initialize Azure credential
 credential = DefaultAzureCredential()
+
 # Initialize CosmosDB client
 client = CosmosClient(ENDPOINT, credential=credential)
 database = client.get_database_client(DATABASE_NAME)
 container = database.get_container_client(CONTAINER_NAME)
 
-# Initialize Blob Storage client
-blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+# Initialize Blob Storage client with DefaultAzureCredential
+blob_service_client = BlobServiceClient(f"https://{AZURE_BLOB_ACCOUNT}.blob.core.windows.net", credential=credential)
 blob_container_client = blob_service_client.get_container_client(AZURE_BLOB_CONTAINER)
 
 def get_dataset_file_preview(blob_path):
@@ -153,17 +154,31 @@ def generate_blob_sas_url(blob_path, hours_valid=1):
     Returns:
         Full URL with SAS token
     """
-    from azure.storage.blob import generate_blob_sas, BlobSasPermissions
     from datetime import datetime, timedelta
+    from azure.storage.blob import generate_blob_sas, BlobSasPermissions
     
-    # Generate SAS token for blob access
+    # Get a blob client for the specific blob
+    blob_client = blob_container_client.get_blob_client(blob_path)
+    
+    # Generate a user delegation key that will be used to create the SAS
+    start_time = datetime.utcnow()
+    expiry_time = start_time + timedelta(hours=hours_valid)
+    
+    # Generate the SAS token using DefaultAzureCredential
+    user_delegation_key = blob_service_client.get_user_delegation_key(
+        key_start_time=start_time,
+        key_expiry_time=expiry_time
+    )
+    
+    # Generate SAS token using the user delegation key
     sas_token = generate_blob_sas(
         account_name=blob_service_client.account_name,
         container_name=AZURE_BLOB_CONTAINER,
         blob_name=blob_path,
-        account_key=blob_service_client.credential.account_key,
+        user_delegation_key=user_delegation_key,
         permission=BlobSasPermissions(read=True),
-        expiry=datetime.utcnow() + timedelta(hours=hours_valid)
+        expiry=expiry_time,
+        start=start_time
     )
     
     # Create the full URL with SAS token

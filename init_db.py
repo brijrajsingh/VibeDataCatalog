@@ -26,8 +26,8 @@ def main():
     """Initialize the database and container."""
     print(f"Connecting to Azure Cosmos DB at {ENDPOINT}...")
     
-    if not ENDPOINT or not KEY:
-        print("Error: Missing COSMOSDB_ENDPOINT or COSMOSDB_KEY in .env file")
+    if not ENDPOINT:
+        print("Error: Missing COSMOSDB_ENDPOINT in .env file")
         return
     
     # Initialize the Cosmos client

@@ -3,6 +3,7 @@ Test script to verify Excel file preview functionality
 """
 import os
 from azure.storage.blob import BlobServiceClient
+from azure.identity import DefaultAzureCredential
 import pandas as pd
 import io
 from dotenv import load_dotenv
@@ -11,15 +12,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Azure Configuration
-AZURE_STORAGE_CONNECTION_STRING = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
+AZURE_BLOB_ACCOUNT = os.environ.get("AZURE_BLOB_ACCOUNT")
 AZURE_BLOB_CONTAINER = os.environ.get("AZURE_BLOB_CONTAINER")
 
 def test_excel_preview():
     """Test that Excel files can be previewed correctly"""
     print("Testing Excel file preview functionality...")
 
-    # Initialize Blob Storage client
-    blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+    # Initialize Azure credential
+    credential = DefaultAzureCredential()
+    
+    # Initialize Blob Storage client with DefaultAzureCredential
+    blob_service_client = BlobServiceClient(f"https://{AZURE_BLOB_ACCOUNT}.blob.core.windows.net", credential=credential)
     blob_container_client = blob_service_client.get_container_client(AZURE_BLOB_CONTAINER)
 
     # Create a simple Excel DataFrame for testing

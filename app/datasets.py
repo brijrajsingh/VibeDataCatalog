@@ -11,23 +11,21 @@ import io
 
 # Azure Configuration
 ENDPOINT = os.environ.get("COSMOSDB_ENDPOINT")
-# KEY = os.environ.get("COSMOSDB_KEY")
 DATABASE_NAME = os.environ.get("COSMOSDB_DATABASE")
 CONTAINER_NAME = os.environ.get("COSMOSDB_CONTAINER")
-AZURE_STORAGE_CONNECTION_STRING = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
+AZURE_BLOB_ACCOUNT = os.environ.get("AZURE_BLOB_ACCOUNT")
 AZURE_BLOB_CONTAINER = os.environ.get("AZURE_BLOB_CONTAINER")
 
-# Initialize CosmosDB client
-
+# Initialize Azure credential
 credential = DefaultAzureCredential()
 
+# Initialize CosmosDB client
 client = CosmosClient(ENDPOINT, credential=credential)
-
 database = client.get_database_client(DATABASE_NAME)
 container = database.get_container_client(CONTAINER_NAME)
 
-# Initialize Blob Storage client
-blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+# Initialize Blob Storage client with DefaultAzureCredential
+blob_service_client = BlobServiceClient(f"https://{AZURE_BLOB_ACCOUNT}.blob.core.windows.net", credential=credential)
 blob_container_client = blob_service_client.get_container_client(AZURE_BLOB_CONTAINER)
 
 # Blueprint for dataset routes

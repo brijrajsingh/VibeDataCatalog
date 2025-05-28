@@ -5,13 +5,14 @@ This script will create the blob container if it doesn't exist.
 
 import os
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient, __version__
+from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
 # Azure Blob Storage settings
-AZURE_STORAGE_CONNECTION_STRING = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
+AZURE_BLOB_ACCOUNT = os.environ.get("AZURE_BLOB_ACCOUNT")
 AZURE_BLOB_CONTAINER = os.environ.get("AZURE_BLOB_CONTAINER", "datasets")
 
 def main():
@@ -19,13 +20,14 @@ def main():
     print(f"Azure Blob Storage SDK version: {__version__}")
     print(f"Connecting to Azure Blob Storage...")
     
-    if not AZURE_STORAGE_CONNECTION_STRING:
-        print("Error: Missing AZURE_STORAGE_CONNECTION_STRING in .env file")
+    if not AZURE_BLOB_ACCOUNT:
+        print("Error: Missing AZURE_BLOB_ACCOUNT in .env file")
         return
     
     try:
-        # Create the BlobServiceClient object
-        blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+        # Create the BlobServiceClient object using DefaultAzureCredential
+        credential = DefaultAzureCredential()
+        blob_service_client = BlobServiceClient(f"https://{AZURE_BLOB_ACCOUNT}.blob.core.windows.net", credential=credential)
         print(f"Connected to Blob Storage account: {blob_service_client.account_name}")
         
         # Check if the container exists and create if not
