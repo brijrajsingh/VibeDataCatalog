@@ -198,7 +198,8 @@ document.addEventListener('DOMContentLoaded', function() {
         .enter().append('path')
         .attr('class', 'link')
         .attr('marker-end', 'url(#arrow)');
-      // Create nodes
+    
+    // Create nodes
     const node = g.append('g')
         .attr('class', 'nodes')
         .selectAll('g')
@@ -267,9 +268,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Set up force simulation
     const simulation = d3.forceSimulation(nodes)
-        .force('link', d3.forceLink(links).id(d => d.id).distance(100))
-        .force('charge', d3.forceManyBody().strength(-300))
-        .force('center', d3.forceCenter(width / 2, height / 2));
+        .force('link', d3.forceLink(links).id(d => d.id).distance(200)) // Increase link distance for better separation
+        .force('charge', d3.forceManyBody().strength(-500)) // Increase repulsion for better spacing
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(40)); // Add collision force to prevent overlap
     
     // Group datasets by base_name if checkbox is checked
     function updateLayout() {

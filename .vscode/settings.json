@@ -1,0 +1,14 @@
+{
+    "containerApps.deploymentConfigurations": [
+        {
+            "label": "vibedatacatalog",
+            "type": "AcrDockerBuildRequest",
+            "dockerfilePath": "Dockerfile",
+            "srcPath": ".",
+            "envPath": ".env",
+            "resourceGroup": "rg-kc-aiagent-dev-tools",
+            "containerApp": "vibedatacatalog",
+            "containerRegistry": "acrdevtools"
+        }
+    ]
+}

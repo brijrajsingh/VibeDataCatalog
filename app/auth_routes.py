@@ -5,5 +5,5 @@ from flask_login import current_user
 def profile():
     """User profile page."""
     if not current_user.is_authenticated:
-        return render_template('auth/login.html')
+        return render_template('login.html')
     return render_template('auth/profile.html', name=current_user.username)

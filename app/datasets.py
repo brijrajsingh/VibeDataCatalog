@@ -7,6 +7,7 @@ import uuid
 import os
 import pandas as pd
 import io
+from pytz import timezone  # Import timezone for local time conversion
 
 # Azure Configuration
 ENDPOINT = os.environ.get("COSMOSDB_ENDPOINT")
@@ -61,6 +62,14 @@ def register_dataset():
         description = request.form.get('description')
         tags = [tag.strip() for tag in request.form.get('tags', '').split(',') if tag.strip()]
         
+        # Check if a dataset with the same name already exists
+        query = f"SELECT * FROM c WHERE c.type = 'dataset' AND c.name = '{name}'"
+        existing_datasets = list(container.query_items(query=query, enable_cross_partition_query=True))
+        
+        if existing_datasets:
+            flash(f"A dataset with the name '{name}' already exists. Please choose a different name.", 'error')
+            return redirect(request.url)
+        
         # Create a new dataset record
         dataset_id = str(uuid.uuid4())
         dataset = {
@@ -95,6 +104,16 @@ def view_dataset(dataset_id):
         return redirect(url_for('datasets.list_datasets'))
     
     dataset = items[0]
+    
+    # Convert uploaded_at to local time for each file
+    browser_timezone = request.args.get('timezone', 'UTC')  # Default to UTC if not provided
+    for file in dataset.get('files', []):
+        if 'uploaded_at' in file:
+            utc_time = datetime.fromisoformat(file['uploaded_at'])
+            local_time = utc_time.astimezone(timezone(browser_timezone))
+            file['uploaded_at_local'] = local_time.isoformat()  # Add local time to file metadata
+            file['uploaded_at'] = file['uploaded_at_local']  # Update uploaded_at with local time
+            
     
     # Get dataset versions (including deleted ones for admin view)
     query = f"SELECT * FROM c WHERE c.base_name = '{dataset['base_name']}' ORDER BY c.version DESC"
@@ -149,6 +168,12 @@ def upload_file(dataset_id):
             blob_client = blob_service_client.get_blob_client(container=AZURE_BLOB_CONTAINER, blob=blob_path)
             blob_client.upload_blob(file)
             
+            # Reset file pointer and calculate file size in kilobytes
+            file.seek(0, io.SEEK_END)  # Move to the end of the file to get its size
+            size_bytes = file.tell()
+            file.seek(0)  # Reset pointer for further operations
+            size_kb = size_bytes / 1024            
+           
             # Update dataset metadata
             file_info = {
                 'id': file_id,
@@ -156,7 +181,8 @@ def upload_file(dataset_id):
                 'blob_path': blob_path,
                 'uploaded_by': current_user.username,
                 'uploaded_at': datetime.utcnow().isoformat(),
-                'size_bytes': len(file.read())
+                'size_bytes': size_bytes,
+                'size_kb': round(size_kb, 2)  # Store size in KB rounded to 2 decimal places
             }
             
             dataset['files'].append(file_info)
@@ -412,6 +438,13 @@ def preview_file(dataset_id, file_id):
         flash('File not found', 'error')
         return redirect(url_for('datasets.view_dataset', dataset_id=dataset_id))
     
+    # Convert uploaded_at to local time for the file
+    browser_timezone = request.args.get('timezone', 'UTC')  # Default to UTC if not provided
+    if 'uploaded_at' in file_info:
+        utc_time = datetime.fromisoformat(file_info['uploaded_at'])
+        local_time = utc_time.astimezone(timezone(browser_timezone))
+        file_info['uploaded_at_local'] = local_time.isoformat()  # Add local time to file metadata
+    
     # Get file preview from utils
     from .utils import get_dataset_file_preview
     preview_data = get_dataset_file_preview(file_info['blob_path'])
@@ -420,7 +453,7 @@ def preview_file(dataset_id, file_id):
     preview_data['file_info'] = {
         'filename': file_info['filename'],
         'uploaded_by': file_info['uploaded_by'],
-        'uploaded_at': file_info['uploaded_at'],
+        'uploaded_at': file_info['uploaded_at_local'],  # Use local time
         'size_bytes': file_info['size_bytes']
     }
     

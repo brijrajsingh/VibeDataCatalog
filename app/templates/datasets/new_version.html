@@ -81,8 +81,9 @@
         // Initialize the tags array from the existing value
         let tags = hiddenTagsInput.value ? hiddenTagsInput.value.split(',').map(tag => tag.trim()) : [];
         
-        // Display initial tags
+        // Display initial tags without duplication
         function initializeTags() {
+            tagsContainer.innerHTML = ''; // Clear existing tags to prevent duplication
             tags.forEach(tagValue => {
                 if (tagValue) {
                     const tagElement = document.createElement('span');

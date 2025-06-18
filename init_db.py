@@ -21,6 +21,11 @@ KEY = os.environ.get("COSMOSDB_KEY")
 DATABASE_NAME = os.environ.get("COSMOSDB_DATABASE", "datacatalog")
 CONTAINER_NAME = os.environ.get("COSMOSDB_CONTAINER", "metadata")
 
+# Test user settings
+ADMIN_USER_USERNAME = os.environ.get("ADMIN_USER_USERNAME", "testuser")
+ADMIN_USER_EMAIL = os.environ.get("ADMIN_USER_EMAIL", "testuser@example.com")
+ADMIN_USER_PASSWORD = os.environ.get("ADMIN_USER_PASSWORD", "password")
+
 def main():
     """Initialize the database and container."""
     print(f"Connecting to Azure Cosmos DB at {ENDPOINT}...")
@@ -62,13 +67,13 @@ def main():
         test_user = {
             'id': user_id,
             'type': 'user',
-            'username': 'testuser',
-            'email': 'test@example.com',
-            'password': generate_password_hash('password')
+            'username': ADMIN_USER_USERNAME,
+            'email': ADMIN_USER_EMAIL,
+            'password': generate_password_hash(ADMIN_USER_PASSWORD)
         }
         
         container.create_item(body=test_user)
-        print(f"Test user created with username 'testuser' and password 'password'")
+        print(f"Test user created with username '{ADMIN_USER_USERNAME}'")
     else:
         print(f"Found {len(users)} existing users. Skipping test user creation.")
     
