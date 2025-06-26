@@ -93,6 +93,17 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+
+        // Get the browser timezone
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+        // Append the timezone parameter to the current URL if not already present
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has('timezone')) {
+            url.searchParams.set('timezone', timezone);
+            window.location.href = url.toString();
+        }
+
         // Automatically submit form when "show deleted" toggle changes
         const showDeletedSwitch = document.getElementById('showDeletedSwitch');
         showDeletedSwitch.addEventListener('change', function() {

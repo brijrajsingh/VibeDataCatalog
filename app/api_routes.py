@@ -5,6 +5,8 @@ import os
 from datetime import datetime, timedelta
 import uuid
 
+import pytz
+
 # Azure Configuration
 ENDPOINT = os.environ.get("COSMOSDB_ENDPOINT")
 KEY = os.environ.get("COSMOSDB_KEY")
@@ -32,8 +34,19 @@ def get_recent_datasets():
 @login_required
 def get_activities():
     """Get the most recent activities across all users"""
+    browser_timezone = request.args.get('timezone', 'Asia/Calcutta')  # Default to Asia/Calcutta timezone
     query = "SELECT TOP 10 c.id, c.timestamp, c.username, c.message, c.activity_type FROM c WHERE c.type = 'activity' ORDER BY c._ts DESC"
     activities = list(container.query_items(query=query, enable_cross_partition_query=True))
+    """convert field timestamp to the browser timezone, timestamp is in UTC""" 
+    for activity in activities:
+        activity['timestamp'] = datetime.fromisoformat(activity['timestamp']).astimezone().isoformat()
+        utc_time = datetime.fromisoformat(activity['timestamp'])
+        utcmoment = utc_time.replace(tzinfo=pytz.utc)
+        localFormat = "%Y-%m-%d %H:%M:%S"            
+        local_time = utcmoment.astimezone(pytz.timezone(browser_timezone))
+        activity['timestamp_local']= local_time.strftime(localFormat)
+        activity['timestamp'] = activity['timestamp_local']  # Update created_at with local time
+    
     
     return jsonify({'activities': activities})
 

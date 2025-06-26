@@ -151,8 +151,8 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Data from server
-    const nodes = {{ nodes|tojson }};
-    const links = {{ links|tojson }};
+    const nodes = JSON.parse('{{ nodes|tojson }}');
+    const links = JSON.parse('{{ links|tojson}}');
     
     // Get container dimensions
     const container = document.getElementById('lineageVisualization');
@@ -217,22 +217,19 @@ document.addEventListener('DOMContentLoaded', function() {
         .attr('r', 12)
         .attr('fill', d => getColorForDataset(d))
         .on('mouseover', function(event, d) {
+            // Get the container's bounding rect
+            const containerRect = container.getBoundingClientRect();
+            
+            // Calculate tooltip position relative to the node's position
+            const tooltipX =  d.x + 20; // 20px to the right of the node
+            const tooltipY =  d.y - 10; // 10px above the node center
+            
             tooltip.transition()
                 .duration(200)
                 .style('opacity', 0.9);
-                  // Create tooltip content
-            let content = `
-                <div>
-                    <h5>${d.name} ${d.is_deleted ? '<span class="badge bg-danger">Deleted</span>' : ''}</h5>
-                    <p><strong>Version:</strong> ${d.version}</p>
-                    <p><strong>Tags:</strong> ${d.tags.join(', ') || 'None'}</p>
-                    ${d.is_deleted ? '<p class="text-danger"><strong>Status:</strong> Deleted</p>' : ''}
-                </div>
-            `;
-            
-            tooltip.html(content)
-                .style('left', (event.pageX + 10) + 'px')
-                .style('top', (event.pageY - 28) + 'px');
+            tooltip.html(`<strong>${d.name}</strong><br>Version: ${d.version}`)
+                .style('left', `${tooltipX}px`)
+                .style('top', `${tooltipY}px`);
                 
             // Highlight connected nodes
             highlightConnections(d.id);

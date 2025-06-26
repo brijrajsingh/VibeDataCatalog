@@ -75,6 +75,17 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+
+     // Get the browser timezone
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    // Append the timezone parameter to the current URL if not already present
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('timezone')) {
+        url.searchParams.set('timezone', timezone);
+        window.location.href = url.toString();
+    }
+    
     // Load recent datasets
     fetch('/api/recent_datasets')
         .then(response => response.json())

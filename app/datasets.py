@@ -8,6 +8,7 @@ import os
 import pandas as pd
 import io
 from pytz import timezone  # Import timezone for local time conversion
+import pytz
 
 # Azure Configuration
 ENDPOINT = os.environ.get("COSMOSDB_ENDPOINT")
@@ -34,6 +35,7 @@ datasets_bp = Blueprint('datasets', __name__, url_prefix='/datasets')
 def list_datasets():
     """List all datasets"""
     show_deleted = request.args.get('show_deleted', '').lower() == 'true'
+    browser_timezone = request.args.get('timezone', 'Asia/Calcutta')  # Default to Asia/Calcutta timezone
     
     # Exclude deleted datasets unless specifically requested
     if show_deleted:
@@ -42,6 +44,16 @@ def list_datasets():
         query = "SELECT * FROM c WHERE c.type = 'dataset' AND NOT IS_DEFINED(c.is_deleted) ORDER BY c._ts DESC"
         
     datasets = list(container.query_items(query=query, enable_cross_partition_query=True))
+    
+    # Convert created_at to local time for each dataset
+    for dataset in datasets:
+        if 'created_at' in dataset:
+            utc_time = datetime.fromisoformat(dataset['created_at'])
+            utcmoment = utc_time.replace(tzinfo=pytz.utc)
+            localFormat = "%Y-%m-%d %H:%M:%S"            
+            local_time = utcmoment.astimezone(pytz.timezone(browser_timezone))
+            dataset['created_at_local'] = local_time.strftime(localFormat)
+            dataset['created_at'] = dataset['created_at_local']  # Update created_at with local time
     
     # Group datasets by their base name to show versions
     dataset_groups = {}
@@ -95,6 +107,9 @@ def register_dataset():
 @datasets_bp.route('/<dataset_id>')
 @login_required
 def view_dataset(dataset_id):
+     # Convert uploaded_at to local time for each file
+    browser_timezone = request.args.get('timezone', 'UTC')  # Default to UTC if not provided
+
     """View a specific dataset"""
     query = f"SELECT * FROM c WHERE c.id = '{dataset_id}'"
     items = list(container.query_items(query=query, enable_cross_partition_query=True))
@@ -104,16 +119,22 @@ def view_dataset(dataset_id):
         return redirect(url_for('datasets.list_datasets'))
     
     dataset = items[0]
+    utc_time = datetime.fromisoformat(dataset['created_at'])
+    utcmoment = utc_time.replace(tzinfo=pytz.utc)
+    localFormat = "%Y-%m-%d %H:%M:%S"            
+    local_time = utcmoment.astimezone(pytz.timezone(browser_timezone))
+    dataset['created_at_local'] = local_time.strftime(localFormat)
+    dataset['created_at'] = dataset['created_at_local']  # Update created_at with local time  
     
-    # Convert uploaded_at to local time for each file
-    browser_timezone = request.args.get('timezone', 'UTC')  # Default to UTC if not provided
+   
     for file in dataset.get('files', []):
         if 'uploaded_at' in file:
             utc_time = datetime.fromisoformat(file['uploaded_at'])
-            local_time = utc_time.astimezone(timezone(browser_timezone))
-            file['uploaded_at_local'] = local_time.isoformat()  # Add local time to file metadata
-            file['uploaded_at'] = file['uploaded_at_local']  # Update uploaded_at with local time
-            
+            utcmoment = utc_time.replace(tzinfo=pytz.utc)
+            localFormat = "%Y-%m-%d %H:%M:%S"            
+            local_time = utcmoment.astimezone(pytz.timezone(browser_timezone))
+            file['uploaded_at_local'] = local_time.strftime(localFormat)
+            file['uploaded_at'] = file['uploaded_at_local']  # Update created_at with local time  
     
     # Get dataset versions (including deleted ones for admin view)
     query = f"SELECT * FROM c WHERE c.base_name = '{dataset['base_name']}' ORDER BY c.version DESC"
@@ -368,6 +389,16 @@ def search_datasets():
     else:
         datasets = all_datasets
     
+    #set the created_at_local field for each dataset
+    for dataset in datasets:
+        if 'created_at' in dataset:
+            utc_time = datetime.fromisoformat(dataset['created_at'])
+            utcmoment = utc_time.replace(tzinfo=pytz.utc)
+            localFormat = "%Y-%m-%d %H:%M:%S"            
+            local_time = utcmoment.astimezone(pytz.timezone('Asia/Calcutta'))
+            dataset['created_at_local'] = local_time.strftime(localFormat)
+            dataset['created_at'] = dataset['created_at_local']
+    
     return render_template('datasets/search.html', datasets=datasets, query=query_term, show_deleted=show_deleted)
 
 @datasets_bp.route('/lineage')
@@ -417,6 +448,9 @@ def lineage_view():
 @login_required
 def preview_file(dataset_id, file_id):
     """Preview the contents of a file from a dataset"""
+     # Convert uploaded_at to local time for each file
+    browser_timezone = request.args.get('timezone', 'UTC')  # Default to UTC if not provided
+
     # Get dataset information
     query = f"SELECT * FROM c WHERE c.id = '{dataset_id}'"
     items = list(container.query_items(query=query, enable_cross_partition_query=True))
@@ -442,9 +476,11 @@ def preview_file(dataset_id, file_id):
     browser_timezone = request.args.get('timezone', 'UTC')  # Default to UTC if not provided
     if 'uploaded_at' in file_info:
         utc_time = datetime.fromisoformat(file_info['uploaded_at'])
-        local_time = utc_time.astimezone(timezone(browser_timezone))
-        file_info['uploaded_at_local'] = local_time.isoformat()  # Add local time to file metadata
-    
+        utcmoment = utc_time.replace(tzinfo=pytz.utc)
+        localFormat = "%Y-%m-%d %H:%M:%S"            
+        local_time = utcmoment.astimezone(pytz.timezone(browser_timezone))
+        file_info['uploaded_at_local'] = local_time.strftime(localFormat)
+        file_info['uploaded_at'] = file_info['uploaded_at_local']  # Update created_at with local time           
     # Get file preview from utils
     from .utils import get_dataset_file_preview
     preview_data = get_dataset_file_preview(file_info['blob_path'])

@@ -141,11 +141,22 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Get the browser timezone
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+        // Append the timezone parameter to the current URL if not already present
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has('timezone')) {
+            url.searchParams.set('timezone', timezone);
+            window.location.href = url.toString();
+        }
+
         // Handle the show deleted switch
         const showDeletedSwitch = document.getElementById('showDeletedSwitch');
         showDeletedSwitch.addEventListener('change', function() {
             const url = new URL(window.location);
             url.searchParams.set('show_deleted', this.checked);
+            url.searchParams.set('timezone', timezone);
             window.location = url;
         });
     });
