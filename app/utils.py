@@ -25,6 +25,7 @@ def get_dataset_file_preview(blob_path):
     """
     Get a preview of a dataset file from Azure Blob storage
     For CSV and Excel files, returns the first 10 rows and header information
+    For PDF files, returns text content from first few pages
     For other text-based files, returns the first 10 lines
     """
     blob_client = blob_service_client.get_blob_client(container=AZURE_BLOB_CONTAINER, blob=blob_path)
@@ -70,6 +71,34 @@ def get_dataset_file_preview(blob_path):
                 'column_info': column_info,
                 'preview': preview_html,
                 'row_count': len(df)
+            }
+        except Exception as e:
+            return {
+                'type': 'error', 
+                'error': str(e)
+            }
+    elif blob_path.lower().endswith('.pdf'):
+        try:
+            import pypdf
+            from io import BytesIO
+            
+            pdf_reader = pypdf.PdfReader(BytesIO(file_content))
+            num_pages = len(pdf_reader.pages)
+            
+            # Extract text from first few pages
+            text_content = ""
+            max_pages = min(3, num_pages)  # Preview first 3 pages
+            for page_num in range(max_pages):
+                page = pdf_reader.pages[page_num]
+                text_content += f"--- Page {page_num + 1} ---\n"
+                text_content += page.extract_text()
+                text_content += "\n\n"
+            
+            return {
+                'type': 'pdf',
+                'preview': text_content[:2000],  # Limit to first 2000 characters
+                'pdf_pages': num_pages,
+                'text_content': text_content[:2000]
             }
         except Exception as e:
             return {

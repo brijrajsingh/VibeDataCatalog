@@ -198,6 +198,7 @@ dependencies = [
     { name = "openpyxl" },
     { name = "pandas" },
     { name = "pyjwt" },
+    { name = "pypdf" },
     { name = "python-dotenv" },
     { name = "pytz" },
     { name = "werkzeug" },
@@ -213,6 +214,7 @@ requires-dist = [
     { name = "openpyxl", specifier = "==3.1.2" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pyjwt", specifier = "==2.8.0" },
+    { name = "pypdf", specifier = ">=5.6.1" },
     { name = "python-dotenv", specifier = "==1.0.0" },
     { name = "pytz", specifier = ">=2025.2" },
     { name = "werkzeug", specifier = "==2.3.7" },
@@ -447,6 +449,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/30/72/8259b2bccfe4673330cea843ab23f86858a419d8f1493f66d413a76c7e3b/PyJWT-2.8.0.tar.gz", hash = "sha256:57e28d156e3d5c10088e0c68abb90bfac3df82b40a71bd0daa20c65ccd5c23de", size = 78313, upload-time = "2023-07-18T20:02:22.594Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2b/4f/e04a8067c7c96c364cef7ef73906504e2f40d690811c021e1a1901473a19/PyJWT-2.8.0-py3-none-any.whl", hash = "sha256:59127c392cc44c2da5bb3192169a91f429924e17aff6534d70fdc02ab3e04320", size = 22591, upload-time = "2023-07-18T20:02:21.561Z" },
+]
+
+[[package]]
+name = "pypdf"
+version = "5.6.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f7/8e/9d9346c36bb02fc6d6e5c5412dcc104e422738c3391ef32032bcb7fb183f/pypdf-5.6.1.tar.gz", hash = "sha256:dde36cd67afe3afd733a562a0dd08a3c1dcdf01fe01de13785291319c8a883ff", size = 5025128, upload-time = "2025-06-22T11:05:25.587Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c5/16/a5619a9d9bd4601126b95a9026eccfe4ebb74d725b7fdf624680e5a1f502/pypdf-5.6.1-py3-none-any.whl", hash = "sha256:ff09d03d37addbc40f75db3624997a660ff5fe41c61e7ae4db6828dc3f581e4d", size = 304638, upload-time = "2025-06-22T11:05:24.285Z" },
 ]
 
 [[package]]

@@ -180,6 +180,14 @@ def upload_file(dataset_id):
             return redirect(request.url)
         
         if file:
+            # Validate file type
+            filename = file.filename.lower()
+            allowed_extensions = ['.csv', '.xlsx', '.xls', '.pdf']
+            
+            if not any(filename.endswith(ext) for ext in allowed_extensions):
+                flash('Invalid file type. Only CSV, Excel (.xlsx, .xls), and PDF files are allowed.', 'error')
+                return redirect(request.url)
+            
             # Save file to Azure Blob Storage
             filename = file.filename
             file_id = str(uuid.uuid4())

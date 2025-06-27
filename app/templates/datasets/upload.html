@@ -22,8 +22,9 @@
                 <form method="POST" action="{{ url_for('datasets.upload_file', dataset_id=dataset.id) }}" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label for="file" class="form-label">Select File</label>
-                        <input class="form-control" type="file" id="file" name="file" required>
-                        <div class="form-text">Upload CSV or Excel files for this dataset.</div>
+                        <input class="form-control" type="file" id="file" name="file" 
+                               accept=".csv,.xlsx,.xls,.pdf" required>
+                        <div class="form-text">Upload CSV, Excel (.xlsx, .xls), or PDF files for this dataset.</div>
                     </div>
                     
                     <div class="d-grid gap-2">

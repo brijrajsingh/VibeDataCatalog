@@ -11,3 +11,4 @@ flask-login==0.6.2
 pyjwt==2.8.0
 chardet==5.1.0
 numpy==1.25.2     # For numerical operations
+pypdf==3.17.4
