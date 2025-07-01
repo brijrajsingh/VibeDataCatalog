@@ -74,8 +74,8 @@ def register_dataset():
         description = request.form.get('description')
         tags = [tag.strip() for tag in request.form.get('tags', '').split(',') if tag.strip()]
         
-        # Check if a dataset with the same name already exists
-        query = f"SELECT * FROM c WHERE c.type = 'dataset' AND c.name = '{name}'"
+        # Check if a non-deleted dataset with the same name already exists
+        query = f"SELECT * FROM c WHERE c.type = 'dataset' AND c.name = '{name}' AND NOT IS_DEFINED(c.is_deleted)"
         existing_datasets = list(container.query_items(query=query, enable_cross_partition_query=True))
         
         if existing_datasets:
@@ -92,6 +92,7 @@ def register_dataset():
             'description': description,
             'tags': tags,
             'version': 1,
+            'is_production': False,  # Default to not production
             'created_by': current_user.username,
             'created_at': datetime.utcnow().isoformat(),
             'files': [],
@@ -254,6 +255,7 @@ def new_version(dataset_id):
             'description': request.form.get('description', parent_dataset['description']),
             'tags': [tag.strip() for tag in request.form.get('tags', ','.join(parent_dataset['tags'])).split(',') if tag.strip()],
             'version': new_version,
+            'is_production': False,  # New versions start as not production
             'created_by': current_user.username,
             'created_at': datetime.utcnow().isoformat(),
             'files': [],
@@ -327,7 +329,7 @@ def search_datasets():
     tag_filters = []
     uploader_filters = []
     name_filters = []
-    status_filter = None  # 'active', 'deleted', or None
+    status_filter = None  # 'active', 'deleted', 'production', or None
     
     for part in search_parts:
         if part.startswith('tag:'):
@@ -338,16 +340,21 @@ def search_datasets():
             status_filter = 'deleted'
         elif part == 'status:active':
             status_filter = 'active'
+        elif part == 'status:production':
+            status_filter = 'production'
         else:
             name_filters.append(part)
-      # Construct the CosmosDB query
+    
+    # Construct the CosmosDB query
     filters = []
     
-    # Handle deleted status
+    # Handle status filtering
     if status_filter == 'deleted':
         filters.append("IS_DEFINED(c.is_deleted)")
+    elif status_filter == 'production':
+        filters.append("NOT IS_DEFINED(c.is_deleted) AND c.is_production = true")
     elif status_filter == 'active':
-        filters.append("NOT IS_DEFINED(c.is_deleted)")
+        filters.append("NOT IS_DEFINED(c.is_deleted) AND (NOT IS_DEFINED(c.is_production) OR c.is_production = false)")
     elif not show_deleted:  # Default behavior is to hide deleted unless explicitly requested
         filters.append("NOT IS_DEFINED(c.is_deleted)")
     
@@ -650,4 +657,89 @@ def restore_dataset(dataset_id):
         pass
     
     flash(f"Dataset '{dataset['name']}' version {dataset['version']} has been restored", 'success')
+    return redirect(url_for('datasets.view_dataset', dataset_id=dataset_id))
+
+@datasets_bp.route('/<dataset_id>/set_production', methods=['POST'])
+@login_required
+def set_production_status(dataset_id):
+    """Set a dataset version as production or remove production status"""
+    query = f"SELECT * FROM c WHERE c.id = '{dataset_id}'"
+    items = list(container.query_items(query=query, enable_cross_partition_query=True))
+    
+    if not items:
+        flash('Dataset not found', 'error')
+        return redirect(url_for('datasets.list_datasets'))
+    
+    dataset = items[0]
+    action = request.form.get('action')  # 'set' or 'unset'
+    
+    # Cannot set production status on deleted datasets
+    if dataset.get('is_deleted', False):
+        flash('Cannot set production status on deleted datasets', 'error')
+        return redirect(url_for('datasets.view_dataset', dataset_id=dataset_id))
+    
+    if action == 'set':
+        # First, remove production status from any other versions of the same dataset
+        query = f"SELECT * FROM c WHERE c.type = 'dataset' AND c.base_name = '{dataset['base_name']}' AND c.is_production = true"
+        production_datasets = list(container.query_items(query=query, enable_cross_partition_query=True))
+        
+        for prod_dataset in production_datasets:
+            if prod_dataset['id'] != dataset_id:
+                prod_dataset['is_production'] = False
+                if 'production_set_by' in prod_dataset:
+                    del prod_dataset['production_set_by']
+                if 'production_set_at' in prod_dataset:
+                    del prod_dataset['production_set_at']
+                container.upsert_item(prod_dataset)
+        
+        # Set current dataset as production
+        dataset['is_production'] = True
+        dataset['production_set_by'] = current_user.username
+        dataset['production_set_at'] = datetime.utcnow().isoformat()
+        
+        container.upsert_item(dataset)
+        
+        # Track this activity
+        try:
+            activity = {
+                'id': str(uuid.uuid4()),
+                'type': 'activity',
+                'username': current_user.username,
+                'timestamp': datetime.utcnow().isoformat(),
+                'activity_type': 'dataset_production_set',
+                'message': f"Set dataset '{dataset['name']}' (version {dataset['version']}) as production",
+                'dataset_id': dataset_id
+            }
+            container.create_item(body=activity)
+        except Exception:
+            pass
+            
+        flash(f"Dataset '{dataset['name']}' version {dataset['version']} has been set as production", 'success')
+        
+    elif action == 'unset':
+        dataset['is_production'] = False
+        if 'production_set_by' in dataset:
+            del dataset['production_set_by']
+        if 'production_set_at' in dataset:
+            del dataset['production_set_at']
+            
+        container.upsert_item(dataset)
+        
+        # Track this activity
+        try:
+            activity = {
+                'id': str(uuid.uuid4()),
+                'type': 'activity',
+                'username': current_user.username,
+                'timestamp': datetime.utcnow().isoformat(),
+                'activity_type': 'dataset_production_unset',
+                'message': f"Removed production status from dataset '{dataset['name']}' (version {dataset['version']})",
+                'dataset_id': dataset_id
+            }
+            container.create_item(body=activity)
+        except Exception:
+            pass
+            
+        flash(f"Production status removed from dataset '{dataset['name']}' version {dataset['version']}", 'success')
+    
     return redirect(url_for('datasets.view_dataset', dataset_id=dataset_id))
