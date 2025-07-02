@@ -3,6 +3,38 @@
 {% block title %}Dashboard - Data Catalog{% endblock %}
 
 {% block content %}
+{% if is_admin %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5><i class="fas fa-user-shield"></i> Admin Panel</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>User Management</h6>
+                        <p class="text-muted">Manage user accounts, approve new users, and set user status.</p>
+                        <a href="/admin/users" class="btn btn-warning">Manage Users</a>
+                    </div>
+                    <div class="col-md-6">
+                        <div id="pending-users-widget">
+                            <h6>Pending Approvals</h6>
+                            <p class="text-muted">Users waiting for verification: 
+                                <span id="pending-count" class="badge bg-warning text-dark">Loading...</span>
+                            </p>
+                            <div id="pending-users-list" style="display: none;">
+                                <!-- Pending users will be listed here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Dashboard</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
@@ -75,6 +107,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Dashboard loaded');
+    console.log('Is admin:', {{ is_admin|tojson }});
 
      // Get the browser timezone
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -230,6 +264,58 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Error loading dataset statistics:', error);
         });
+
+    // Load pending users count for admin dashboard
+    if ({{ is_admin|tojson }}) {
+        console.log('Loading pending users for admin...');
+        fetch('/admin/api/pending_users')
+            .then(response => {
+                console.log('Pending users response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Pending users data:', data);
+                const countElement = document.getElementById('pending-count');
+                const listElement = document.getElementById('pending-users-list');
+                
+                if (countElement) {
+                    countElement.textContent = data.count;
+                    if (data.count > 0) {
+                        countElement.className = 'badge bg-danger text-white';
+                        
+                        // Show list of pending users
+                        if (listElement && data.users.length > 0) {
+                            listElement.innerHTML = '<small class="text-muted">Recent pending users:</small><br>';
+                            data.users.slice(0, 3).forEach(user => {
+                                listElement.innerHTML += `<small class="d-block">${user.username} (${user.email})</small>`;
+                            });
+                            if (data.users.length > 3) {
+                                listElement.innerHTML += `<small class="text-muted">...and ${data.users.length - 3} more</small>`;
+                            }
+                            listElement.style.display = 'block';
+                        }
+                    } else {
+                        countElement.className = 'badge bg-success text-white';
+                        countElement.textContent = '0';
+                    }
+                } else {
+                    console.error('pending-count element not found');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading pending users:', error);
+                const countElement = document.getElementById('pending-count');
+                if (countElement) {
+                    countElement.textContent = 'Error';
+                    countElement.className = 'badge bg-danger text-white';
+                }
+            });
+    } else {
+        console.log('User is not admin, skipping pending users load');
+    }
 });
 </script>
 {% endblock %}

@@ -24,9 +24,11 @@ def create_app():
         from .auth import auth_bp
         from .datasets import datasets_bp
         from .api_routes import api_bp
+        from .admin_routes import admin_bp
         
         app.register_blueprint(auth_bp)
         app.register_blueprint(datasets_bp)
         app.register_blueprint(api_bp)
+        app.register_blueprint(admin_bp)
 
         return app

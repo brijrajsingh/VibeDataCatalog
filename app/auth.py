@@ -24,11 +24,13 @@ login_manager.login_view = 'auth.login'
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 class User(UserMixin):
-    def __init__(self, id, username, email, password):
+    def __init__(self, id, username, email, password, role='user', status='unverified'):
         self.id = id
         self.username = username
         self.email = email
         self.password = password
+        self.role = role
+        self.status = status
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -44,7 +46,9 @@ def load_user(user_id):
         id=user_data['id'],
         username=user_data['username'],
         email=user_data['email'],
-        password=user_data['password']
+        password=user_data['password'],
+        role=user_data.get('role', 'user'),
+        status=user_data.get('status', 'unverified')
     )
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -62,12 +66,28 @@ def login():
             flash('Please check your login details and try again.')
             return redirect(url_for('auth.login'))
         
+        user_data = items[0]
+        user_status = user_data.get('status', 'unverified')
+        user_role = user_data.get('role', 'user')
+        
+        # Check user status - only active users and admins can login
+        if user_status != 'active' and user_role != 'admin':
+            if user_status == 'unverified':
+                flash('Your account is pending verification. Please contact an administrator.')
+            elif user_status == 'inactive':
+                flash('Your account has been deactivated. Please contact an administrator.')
+            else:
+                flash('Account access denied.')
+            return redirect(url_for('auth.login'))
+        
         # Create a User instance
         user = User(
-            id=items[0]['id'],
-            username=items[0]['username'],
-            email=items[0]['email'],
-            password=items[0]['password']
+            id=user_data['id'],
+            username=user_data['username'],
+            email=user_data['email'],
+            password=user_data['password'],
+            role=user_role,
+            status=user_status
         )
         
         # Log in the user
@@ -92,7 +112,7 @@ def signup():
             flash('Username or Email already exists')
             return redirect(url_for('auth.signup'))
         
-        # Create a new user
+        # Create a new user with unverified status
         import uuid
         user_id = str(uuid.uuid4())
         new_user = {
@@ -100,10 +120,13 @@ def signup():
             'type': 'user',
             'username': username,
             'email': email,
-            'password': generate_password_hash(password)
+            'password': generate_password_hash(password),
+            'role': 'user',
+            'status': 'unverified'
         }
         
         container.create_item(body=new_user)
+        flash('Account created successfully! Please wait for admin verification before logging in.')
         
         return redirect(url_for('auth.login'))
     

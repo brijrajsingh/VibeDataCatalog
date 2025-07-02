@@ -1,5 +1,5 @@
 from flask import render_template, current_app as app
-from flask_login import login_required
+from flask_login import login_required, current_user
 
 @app.route('/')
 def index():
@@ -10,4 +10,5 @@ def index():
 @login_required
 def dashboard():
     """Dashboard page."""
-    return render_template('dashboard.html')
+    is_admin = current_user.role == 'admin' if current_user.is_authenticated else False
+    return render_template('dashboard.html', is_admin=is_admin)

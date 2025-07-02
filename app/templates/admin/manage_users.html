@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2>User Management</h2>
+            
+            <!-- Pending Users Alert -->
+            <div id="pending-alert" class="alert alert-warning" style="display: none;">
+                <strong>Pending Verification:</strong> <span id="pending-count">0</span> users are waiting for approval.
+            </div>
+            
+            <!-- Users Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h5>All Users</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped" id="users-table">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Joined</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Users will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.status-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.status-active { background-color: #d4edda; color: #155724; }
+.status-inactive { background-color: #f8d7da; color: #721c24; }
+.status-unverified { background-color: #fff3cd; color: #856404; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadUsers();
+    loadPendingUsers();
+});
+
+function loadUsers() {
+    fetch('/admin/api/users')
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.querySelector('#users-table tbody');
+            tbody.innerHTML = '';
+            
+            data.users.forEach(user => {
+                const row = document.createElement('tr');
+                const joinedDate = new Date(user._ts * 1000).toLocaleDateString();
+                
+                row.innerHTML = `
+                    <td>${user.username}</td>
+                    <td>${user.email}</td>
+                    <td><span class="badge badge-secondary">${user.role}</span></td>
+                    <td><span class="status-badge status-${user.status}">${user.status}</span></td>
+                    <td>${joinedDate}</td>
+                    <td>
+                        ${user.role !== 'admin' ? `
+                            <select class="form-control form-control-sm" onchange="updateUserStatus('${user.id}', this.value)" style="width: auto; display: inline-block;">
+                                <option value="unverified" ${user.status === 'unverified' ? 'selected' : ''}>Unverified</option>
+                                <option value="active" ${user.status === 'active' ? 'selected' : ''}>Active</option>
+                                <option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>Inactive</option>
+                            </select>
+                        ` : '<span class="text-muted">Admin</span>'}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading users:', error);
+        });
+}
+
+function loadPendingUsers() {
+    fetch('/admin/api/pending_users')
+        .then(response => response.json())
+        .then(data => {
+            const alertDiv = document.getElementById('pending-alert');
+            const countSpan = document.getElementById('pending-count');
+            
+            if (data.count > 0) {
+                countSpan.textContent = data.count;
+                alertDiv.style.display = 'block';
+            } else {
+                alertDiv.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading pending users:', error);
+        });
+}
+
+function updateUserStatus(userId, newStatus) {
+    fetch(`/admin/api/users/${userId}/status`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show';
+            alertDiv.innerHTML = `
+                ${data.message}
+                <button type="button" class="close" data-dismiss="alert">
+                    <span>&times;</span>
+                </button>
+            `;
+            document.querySelector('.container-fluid').prepend(alertDiv);
+            
+            // Reload users and pending count
+            loadUsers();
+            loadPendingUsers();
+            
+            // Auto-dismiss alert after 3 seconds
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 3000);
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error updating user status:', error);
+        alert('Failed to update user status');
+    });
+}
+</script>
+{% endblock %}
