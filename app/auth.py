@@ -24,13 +24,14 @@ login_manager.login_view = 'auth.login'
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 class User(UserMixin):
-    def __init__(self, id, username, email, password, role='user', status='unverified'):
+    def __init__(self, id, username, email, password, role='user', status='unverified', api_key=None):
         self.id = id
         self.username = username
         self.email = email
         self.password = password
         self.role = role
         self.status = status
+        self.api_key = api_key
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -48,8 +49,46 @@ def load_user(user_id):
         email=user_data['email'],
         password=user_data['password'],
         role=user_data.get('role', 'user'),
-        status=user_data.get('status', 'unverified')
+        status=user_data.get('status', 'unverified'),
+        api_key=user_data.get('api_key')
     )
+
+def get_user_by_api_key(api_key):
+    """Get user by API key"""
+    query = f"SELECT * FROM c WHERE c.type = 'user' AND c.api_key = '{api_key}'"
+    items = list(container.query_items(query=query, enable_cross_partition_query=True))
+    
+    if not items:
+        return None
+    
+    user_data = items[0]
+    return User(
+        id=user_data['id'],
+        username=user_data['username'],
+        email=user_data['email'],
+        password=user_data['password'],
+        role=user_data.get('role', 'user'),
+        status=user_data.get('status', 'unverified'),
+        api_key=user_data.get('api_key')
+    )
+
+def generate_new_api_key(user_id):
+    """Generate a new API key for a user"""
+    import uuid
+    new_api_key = str(uuid.uuid4())
+    
+    # Get the user
+    query = f"SELECT * FROM c WHERE c.type = 'user' AND c.id = '{user_id}'"
+    items = list(container.query_items(query=query, enable_cross_partition_query=True))
+    
+    if not items:
+        return None
+    
+    user = items[0]
+    user['api_key'] = new_api_key
+    container.replace_item(item=user['id'], body=user)
+    
+    return new_api_key
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -87,7 +126,8 @@ def login():
             email=user_data['email'],
             password=user_data['password'],
             role=user_role,
-            status=user_status
+            status=user_status,
+            api_key=user_data.get('api_key')
         )
         
         # Log in the user
@@ -112,9 +152,10 @@ def signup():
             flash('Username or Email already exists')
             return redirect(url_for('auth.signup'))
         
-        # Create a new user with unverified status
+        # Create a new user with unverified status and API key
         import uuid
         user_id = str(uuid.uuid4())
+        api_key = str(uuid.uuid4())
         new_user = {
             'id': user_id,
             'type': 'user',
@@ -122,7 +163,8 @@ def signup():
             'email': email,
             'password': generate_password_hash(password),
             'role': 'user',
-            'status': 'unverified'
+            'status': 'unverified',
+            'api_key': api_key
         }
         
         container.create_item(body=new_user)
@@ -137,3 +179,17 @@ def signup():
 def logout():
     logout_user()
     return redirect(url_for('index'))
+
+@auth_bp.route('/regenerate_api_key', methods=['POST'])
+@login_required
+def regenerate_api_key():
+    """Regenerate API key for current user"""
+    new_api_key = generate_new_api_key(current_user.id)
+    if new_api_key:
+        flash('API key regenerated successfully!')
+        # Update current user object
+        current_user.api_key = new_api_key
+    else:
+        flash('Failed to regenerate API key')
+    
+    return redirect(url_for('profile'))

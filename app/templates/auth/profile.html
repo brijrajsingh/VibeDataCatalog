@@ -3,184 +3,313 @@
 {% block title %}User Profile - Data Catalog{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">User Profile</h1>
-</div>
-
-<div class="row">
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-body text-center">
-                <img src="https://via.placeholder.com/150" class="rounded-circle mb-3" alt="Profile Image">
-                <h3>{{ current_user.username }}</h3>
-                <p class="text-muted">{{ current_user.email }}</p>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-8">
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5>My Datasets</h5>
-            </div>
-            <div class="card-body">
-                <div id="my-datasets-loading">Loading...</div>
-                <div id="my-datasets" style="display: none;"></div>
-            </div>
-        </div>
-        
-        <div class="card">
-            <div class="card-header">
-                <h5>Recent Activity</h5>
-            </div>
-            <div class="card-body">
-                <div id="my-activity-loading">Loading...</div>
-                <div id="my-activity" style="display: none;"></div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Load user datasets
-    fetch('/api/my_datasets')
-        .then(response => response.json())
-        .then(data => {
-            const container = document.getElementById('my-datasets');
-            document.getElementById('my-datasets-loading').style.display = 'none';
-            container.style.display = 'block';
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <h2>User Profile</h2>
             
-            if (data.datasets.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center p-3">
-                        <p>You haven't created any datasets yet.</p>
-                        <a href="{{ url_for('datasets.register_dataset') }}" class="btn btn-primary">Register a Dataset</a>
-                    </div>
-                `;
-                return;
-            }
-            
-            // Create table
-            const table = document.createElement('table');
-            table.className = 'table table-hover';
-            table.innerHTML = `
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Version</th>
-                        <th>Files</th>
-                        <th>Created</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            `;
-            
-            const tbody = table.querySelector('tbody');
-            
-            data.datasets.forEach(dataset => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td><a href="/datasets/${dataset.id}">${dataset.name}</a></td>
-                    <td>v${dataset.version}</td>
-                    <td>${dataset.files ? dataset.files.length : 0}</td>
-                    <td>${dataset.created_at.replace('T', ' ').substring(0, 16)}</td>
-                    <td>
-                        <a href="/datasets/${dataset.id}" class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-eye"></i>
-                        </a>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
-            
-            container.appendChild(table);
-        })
-        .catch(error => {
-            console.error('Error loading user datasets:', error);
-            document.getElementById('my-datasets-loading').textContent = 'Error loading datasets';
-        });
-        
-    // Load user activity
-    fetch('/api/my_activity')
-        .then(response => response.json())
-        .then(data => {
-            const container = document.getElementById('my-activity');
-            document.getElementById('my-activity-loading').style.display = 'none';
-            container.style.display = 'block';
-            
-            if (data.activities.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center p-3">
-                        <p>No recent activity.</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            // Create activity list
-            const list = document.createElement('ul');
-            list.className = 'list-group';
-            
-            data.activities.forEach(activity => {
-                const item = document.createElement('li');
-                item.className = 'list-group-item';
-                item.innerHTML = `
-                    <div class="d-flex w-100 justify-content-between">
-                        <div>
-                            <i class="bi ${getActivityIcon(activity.type)}"></i>
-                            ${activity.message}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Profile Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Username:</strong> {{ current_user.username }}</p>
+                            <p><strong>Email:</strong> {{ current_user.email }}</p>
+                            <p><strong>Role:</strong> 
+                                <span class="badge bg-{{ 'warning' if current_user.role == 'admin' else 'secondary' }}">
+                                    {{ current_user.role }}
+                                </span>
+                            </p>
                         </div>
-                        <small>${formatTimestamp(activity.timestamp)}</small>
+                        <div class="col-md-6">
+                            <p><strong>Status:</strong> 
+                                <span class="badge bg-{{ 'success' if current_user.status == 'active' else 'warning' if current_user.status == 'unverified' else 'danger' }}">
+                                    {{ current_user.status }}
+                                </span>
+                            </p>
+                        </div>
                     </div>
-                `;
-                list.appendChild(item);
-            });
+                </div>
+            </div>
             
-            container.appendChild(list);
-        })
-        .catch(error => {
-            console.error('Error loading user activity:', error);
-            document.getElementById('my-activity-loading').textContent = 'Error loading activity';
-        });
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>API Access</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Use this API key to access the Data Catalog programmatically. Keep it secure and do not share it with others.</p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><strong>API Key:</strong></label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="api-key-input" value="{{ current_user.api_key or 'No API key generated' }}" readonly>
+                            <button class="btn btn-outline-secondary" type="button" id="toggle-api-key">
+                                <i class="fas fa-eye" id="eye-icon"></i>
+                            </button>
+                            <button class="btn btn-outline-primary" type="button" id="copy-api-key">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <form method="POST" action="{{ url_for('auth.regenerate_api_key') }}" class="d-inline">
+                        <button type="submit" class="btn btn-warning" onclick="return confirm('Are you sure you want to regenerate your API key? This will invalidate the current key.')">
+                            <i class="fas fa-refresh"></i> Regenerate API Key
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>API Usage Examples</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Using cURL:</h6>
+                    <pre class="bg-light p-3"><code># List all datasets
+curl -H "X-API-Key: {{ current_user.api_key or 'YOUR_API_KEY' }}" \
+     {{ request.url_root }}api/datasets
+
+# Search datasets
+curl -H "X-API-Key: {{ current_user.api_key or 'YOUR_API_KEY' }}" \
+     "{{ request.url_root }}api/datasets/search?q=sales&tags=analytics"
+
+# Create a new dataset
+curl -X POST \
+     -H "X-API-Key: {{ current_user.api_key or 'YOUR_API_KEY' }}" \
+     -H "Content-Type: application/json" \
+     -d '{"name":"My Dataset","description":"Dataset description","version":"1.0","tags":["analytics","sales"]}' \
+     {{ request.url_root }}api/datasets
+
+# Upload a file to a dataset
+curl -X POST \
+     -H "X-API-Key: {{ current_user.api_key or 'YOUR_API_KEY' }}" \
+     -F "file=@/path/to/your/file.csv" \
+     -F "description=Sample data file" \
+     {{ request.url_root }}api/datasets/DATASET_ID/files
+
+# List files in a dataset
+curl -H "X-API-Key: {{ current_user.api_key or 'YOUR_API_KEY' }}" \
+     {{ request.url_root }}api/datasets/DATASET_ID/files
+
+# Get download URL for a file
+curl -H "X-API-Key: {{ current_user.api_key or 'YOUR_API_KEY' }}" \
+     {{ request.url_root }}api/datasets/DATASET_ID/files/FILE_ID/download</code></pre>
+                    
+                    <h6 class="mt-4">Using Python:</h6>
+                    <pre class="bg-light p-3"><code>import requests
+
+api_key = "{{ current_user.api_key or 'YOUR_API_KEY' }}"
+base_url = "{{ request.url_root }}api"
+headers = {"X-API-Key": api_key}
+
+# List datasets
+response = requests.get(f"{base_url}/datasets", headers=headers)
+datasets = response.json()
+
+# Create dataset
+new_dataset = {
+    "name": "My Dataset",
+    "description": "Dataset description", 
+    "version": "1.0",
+    "tags": ["analytics", "sales"]
+}
+response = requests.post(f"{base_url}/datasets", json=new_dataset, headers=headers)
+dataset_id = response.json()["dataset_id"]
+
+# Create a new version of the dataset
+new_version = {
+    "name": "My Dataset v2.0",
+    "description": "Enhanced dataset with additional features",
+    "version": "2.0",
+    "tags": ["analytics", "sales", "v2"],
+    "parent_id": dataset_id,  # Link to parent dataset
+    "metadata": {
+        "improvements": ["Better data quality", "Additional metrics"]
+    }
+}
+response = requests.post(f"{base_url}/datasets", json=new_version, headers=headers)
+new_version_id = response.json()["dataset_id"]
+
+# Upload a file
+with open("/path/to/your/file.csv", "rb") as file:
+    files = {"file": file}
+    data = {
+        "description": "Sample data file",
+        "tags": "data,csv,sample"
+    }
+    response = requests.post(
+        f"{base_url}/datasets/{dataset_id}/files",
+        headers=headers,
+        files=files,
+        data=data
+    )</code></pre>
+
+                    <h6 class="mt-4">Using Python with requests-toolbelt for large files:</h6>
+                    <pre class="bg-light p-3"><code>import requests
+from requests_toolbelt.multipart.encoder import MultipartEncoder
+
+api_key = "{{ current_user.api_key or 'YOUR_API_KEY' }}"
+base_url = "{{ request.url_root }}api"
+headers = {"X-API-Key": api_key}
+
+# Upload large file with progress tracking
+def upload_large_file(dataset_id, file_path, description="", tags=""):
+    with open(file_path, "rb") as file:
+        multipart_data = MultipartEncoder(
+            fields={
+                "file": (file_path.split("/")[-1], file, "application/octet-stream"),
+                "description": description,
+                "tags": tags
+            }
+        )
         
-    // Helper functions
-    function getActivityIcon(type) {
-        const icons = {
-            'dataset_create': 'bi-plus-square',
-            'file_upload': 'bi-upload',
-            'dataset_version': 'bi-layers',
-            'dataset_view': 'bi-eye'
-        };
+        headers_with_content_type = dict(headers)
+        headers_with_content_type["Content-Type"] = multipart_data.content_type
         
-        return icons[type] || 'bi-activity';
+        response = requests.post(
+            f"{base_url}/datasets/{dataset_id}/files",
+            headers=headers_with_content_type,
+            data=multipart_data
+        )
+        
+        return response.json()
+
+# Usage
+result = upload_large_file(
+    dataset_id="your-dataset-id",
+    file_path="/path/to/large/file.parquet",
+    description="Large dataset file",
+    tags="parquet,big-data"
+)</code></pre>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5>API Endpoints</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Method</th>
+                                    <th>Endpoint</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="badge bg-primary">GET</span></td>
+                                    <td>/api/datasets</td>
+                                    <td>List all datasets</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-success">POST</span></td>
+                                    <td>/api/datasets</td>
+                                    <td>Create a new dataset (or new version with parent_id)</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-primary">GET</span></td>
+                                    <td>/api/datasets/{id}</td>
+                                    <td>Get a specific dataset</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-primary">GET</span></td>
+                                    <td>/api/datasets/search</td>
+                                    <td>Search datasets</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-success">POST</span></td>
+                                    <td>/api/datasets/{id}/files</td>
+                                    <td>Upload a file to dataset</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-primary">GET</span></td>
+                                    <td>/api/datasets/{id}/files</td>
+                                    <td>List files in dataset</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-primary">GET</span></td>
+                                    <td>/api/datasets/{id}/files/{file_id}/download</td>
+                                    <td>Get file download URL</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6>File Upload Notes:</h6>
+                        <ul class="text-muted small">
+                            <li>Maximum file size depends on your Azure Blob Storage configuration</li>
+                            <li>Supported formats: CSV, Excel, JSON, PDF, images, and more</li>
+                            <li>Files are automatically scanned for metadata and preview generation</li>
+                            <li>You can only upload files to datasets you own (unless you're an admin)</li>
+                            <li>Download URLs are valid for 1 hour for security</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6>Dataset Versioning Notes:</h6>
+                        <ul class="text-muted small">
+                            <li>To create a new version, include a <code>parent_id</code> field pointing to the original dataset</li>
+                            <li>New versions inherit properties from parent but can be customized</li>
+                            <li>Each version has its own files and can be managed independently</li>
+                            <li>Use versioning for iterative improvements, data updates, or experimental changes</li>
+                            <li>Version lineage is tracked automatically for data governance</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('toggle-api-key').addEventListener('click', function() {
+    const input = document.getElementById('api-key-input');
+    const icon = document.getElementById('eye-icon');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fas fa-eye';
+    }
+});
+
+document.getElementById('copy-api-key').addEventListener('click', function() {
+    const input = document.getElementById('api-key-input');
+    const wasPassword = input.type === 'password';
+    
+    if (wasPassword) {
+        input.type = 'text';
     }
     
-    function formatTimestamp(timestamp) {
-        // Convert ISO timestamp to relative time like "2 hours ago"
-        const date = new Date(timestamp);
-        const now = new Date();
-        const diff = now - date;
-        
-        const seconds = Math.floor(diff / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        const days = Math.floor(hours / 24);
-        
-        if (days > 0) {
-            return days === 1 ? '1 day ago' : `${days} days ago`;
-        }
-        if (hours > 0) {
-            return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
-        }
-        if (minutes > 0) {
-            return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`;
-        }
-        return 'Just now';
+    input.select();
+    input.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(input.value);
+    
+    if (wasPassword) {
+        input.type = 'password';
     }
+    
+    // Show feedback
+    const button = this;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+    button.classList.remove('btn-outline-primary');
+    button.classList.add('btn-success');
+    
+    setTimeout(() => {
+        button.innerHTML = originalText;
+        button.classList.remove('btn-success');
+        button.classList.add('btn-outline-primary');
+    }, 2000);
 });
 </script>
 {% endblock %}

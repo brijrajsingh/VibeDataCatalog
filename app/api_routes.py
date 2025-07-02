@@ -7,6 +7,9 @@ import uuid
 
 import pytz
 
+from .api_auth import api_key_required, get_current_api_user
+from werkzeug.utils import secure_filename
+
 # Azure Configuration
 ENDPOINT = os.environ.get("COSMOSDB_ENDPOINT")
 KEY = os.environ.get("COSMOSDB_KEY")
@@ -176,3 +179,267 @@ def get_file_direct_link_api(dataset_id, file_id):
         pass
     
     return jsonify({'url': blob_url, 'filename': file_info['filename'], 'valid_hours': 5})
+
+# Import the reusable functions from datasets module
+from .datasets import (
+    create_dataset_record, 
+    get_dataset_by_id, 
+    upload_file_to_dataset, 
+    search_datasets_query,
+    get_file_from_dataset,
+    log_user_activity,
+    container  # Import the container for other queries
+)
+
+@api_bp.route('/datasets', methods=['GET'])
+@api_key_required
+def api_get_datasets():
+    """API endpoint to get datasets (API key authenticated)"""
+    user = get_current_api_user()
+    
+    # Use the same query logic as the web interface
+    query = "SELECT c.id, c.name, c.description, c.version, c.tags, c.created_at, c.created_by FROM c WHERE c.type = 'dataset' AND NOT IS_DEFINED(c.is_deleted) ORDER BY c._ts DESC"
+    datasets = list(container.query_items(query=query, enable_cross_partition_query=True))
+    
+    # Log this API access
+    log_user_activity(user.username, 'api_datasets_list', "Listed datasets via API")
+    
+    return jsonify({'datasets': datasets, 'count': len(datasets)})
+
+@api_bp.route('/datasets', methods=['POST'])
+@api_key_required
+def api_create_dataset():
+    """API endpoint to create a new dataset (API key authenticated)"""
+    user = get_current_api_user()
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    required_fields = ['name', 'description', 'tags']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+    
+    try:
+        # Determine if this is a new dataset or a new version
+        is_new_version = data.get('parent_id') is not None
+        
+        if is_new_version:
+            # For new versions, don't require version field - it will be auto-calculated
+            dataset_id, dataset = create_dataset_record(
+                name="temp_name",  # Will be updated with proper version name
+                description=data['description'],
+                tags=data['tags'] if isinstance(data['tags'], list) else [data['tags']],
+                created_by=user.username,
+                version=None,  # Auto-calculate version number
+                parent_id=data['parent_id'],
+                base_name=data.get('base_name')  # Should be provided or will be derived from parent
+            )
+            
+            # Update name with version number if it was a new version
+            if data.get('parent_id'):
+                parent_dataset = get_dataset_by_id(data['parent_id'])
+                if parent_dataset:
+                    dataset['name'] = f"{dataset['base_name']} v{dataset['version']}"
+                    container.replace_item(item=dataset['id'], body=dataset)
+        else:
+            # For brand new datasets, version starts at 1
+            dataset_id, dataset = create_dataset_record(
+                name=data['name'],
+                description=data['description'],
+                tags=data['tags'] if isinstance(data['tags'], list) else [data['tags']],
+                created_by=user.username,
+                version=data.get('version', 1),  # Default to 1 for new datasets
+                parent_id=None
+            )
+        
+        # Log this activity using the same function
+        activity_message = f"Created dataset '{dataset['name']}' via API"
+        if is_new_version:
+            activity_message = f"Created version {dataset['version']} of dataset '{dataset['base_name']}' via API"
+            
+        log_user_activity(
+            username=user.username,
+            activity_type='api_dataset_created',
+            message=activity_message,
+            dataset_id=dataset_id
+        )
+        
+        return jsonify({
+            'success': True, 
+            'dataset_id': dataset_id, 
+            'dataset_name': dataset['name'],
+            'version': dataset['version'],
+            'message': f'Dataset created successfully with version {dataset["version"]}'
+        }), 201
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': f'Failed to create dataset: {str(e)}'}), 500
+
+@api_bp.route('/datasets/<dataset_id>', methods=['GET'])
+@api_key_required
+def api_get_dataset(dataset_id):
+    """API endpoint to get a specific dataset (API key authenticated)"""
+    user = get_current_api_user()
+    
+    # Reuse the same function as the web interface
+    dataset = get_dataset_by_id(dataset_id)
+    if not dataset:
+        return jsonify({'error': 'Dataset not found'}), 404
+    
+    # Log this API access using the same function
+    log_user_activity(
+        username=user.username,
+        activity_type='api_dataset_accessed',
+        message=f"Accessed dataset '{dataset['name']}' via API",
+        dataset_id=dataset_id
+    )
+    
+    return jsonify({'dataset': dataset})
+
+@api_bp.route('/datasets/search', methods=['GET'])
+@api_key_required
+def api_search_datasets():
+    """API endpoint to search datasets (API key authenticated)"""
+    user = get_current_api_user()
+    query_text = request.args.get('q', '')
+    
+    # Reuse the same search function as the web interface
+    datasets = search_datasets_query(query_text, show_deleted=False)
+    
+    # Log this API search using the same function
+    log_user_activity(
+        username=user.username,
+        activity_type='api_datasets_search',
+        message=f"Searched datasets via API: '{query_text}'"
+    )
+    
+    return jsonify({
+        'datasets': datasets, 
+        'count': len(datasets), 
+        'query': query_text
+    })
+
+@api_bp.route('/datasets/<dataset_id>/files', methods=['POST'])
+@api_key_required
+def api_upload_file(dataset_id):
+    """API endpoint to upload a file to a dataset (API key authenticated)"""
+    user = get_current_api_user()
+    
+    # Check if dataset exists using the same function
+    dataset = get_dataset_by_id(dataset_id)
+    if not dataset:
+        return jsonify({'error': 'Dataset not found'}), 404
+    
+    # Check permissions
+    if dataset['created_by'] != user.username:
+        return jsonify({'error': 'Permission denied. You can only upload files to your own datasets.'}), 403
+    
+    # Check if file is in request
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    description = request.form.get('description', '')
+    tags = request.form.get('tags', '').split(',') if request.form.get('tags') else []
+    tags = [tag.strip() for tag in tags if tag.strip()]
+    
+    try:
+        # Reuse the same upload function as the web interface
+        file_id, file_info = upload_file_to_dataset(
+            dataset_id=dataset_id,
+            file=file,
+            uploaded_by=user.username,
+            description=description,
+            tags=tags
+        )
+        
+        # Log this activity using the same function
+        log_user_activity(
+            username=user.username,
+            activity_type='api_file_uploaded',
+            message=f"Uploaded file '{file_info['filename']}' to dataset '{dataset['name']}' via API",
+            dataset_id=dataset_id,
+            file_id=file_id
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'File uploaded successfully',
+            'file_id': file_id,
+            'filename': file_info['filename'],
+            'size': file_info['size_bytes'],
+            'dataset_id': dataset_id
+        }), 201
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': f'Failed to upload file: {str(e)}'}), 500
+
+@api_bp.route('/datasets/<dataset_id>/files', methods=['GET'])
+@api_key_required
+def api_list_files(dataset_id):
+    """API endpoint to list files in a dataset (API key authenticated)"""
+    user = get_current_api_user()
+    
+    # Reuse the same function as the web interface
+    dataset = get_dataset_by_id(dataset_id)
+    if not dataset:
+        return jsonify({'error': 'Dataset not found'}), 404
+    
+    files = dataset.get('files', [])
+    
+    # Log this API access using the same function
+    log_user_activity(
+        username=user.username,
+        activity_type='api_files_listed',
+        message=f"Listed files in dataset '{dataset['name']}' via API",
+        dataset_id=dataset_id
+    )
+    
+    return jsonify({
+        'dataset_id': dataset_id,
+        'dataset_name': dataset['name'],
+        'files': files,
+        'file_count': len(files)
+    })
+
+@api_bp.route('/datasets/<dataset_id>/files/<file_id>/download', methods=['GET'])
+@api_key_required
+def api_download_file(dataset_id, file_id):
+    """API endpoint to get download URL for a file (API key authenticated)"""
+    user = get_current_api_user()
+    
+    # Reuse the same function as the web interface
+    dataset, file_info = get_file_from_dataset(dataset_id, file_id)
+    if not dataset:
+        return jsonify({'error': 'Dataset not found'}), 404
+    
+    if not file_info:
+        return jsonify({'error': 'File not found'}), 404
+    
+    # Generate download URL using the same utility function
+    from .utils import generate_blob_sas_url
+    download_url = generate_blob_sas_url(file_info['blob_path'], hours_valid=1)
+    
+    # Log this activity using the same function
+    log_user_activity(
+        username=user.username,
+        activity_type='api_file_downloaded',
+        message=f"Downloaded file '{file_info['filename']}' from dataset '{dataset['name']}' via API",
+        dataset_id=dataset_id,
+        file_id=file_id
+    )
+    
+    return jsonify({
+        'download_url': download_url,
+        'filename': file_info['filename'],
+        'size': file_info['size'],
+        'content_type': file_info.get('content_type', 'application/octet-stream'),
+        'valid_hours': 1,
+        'expires_at': (datetime.utcnow() + timedelta(hours=1)).isoformat()
+    })
