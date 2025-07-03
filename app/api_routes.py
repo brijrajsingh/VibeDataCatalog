@@ -438,7 +438,8 @@ def api_download_file(dataset_id, file_id):
     return jsonify({
         'download_url': download_url,
         'filename': file_info['filename'],
-        'size': file_info['size'],
+        'size_bytes': file_info['size_bytes'],
+        'size_kb': file_info['size_kb'],
         'content_type': file_info.get('content_type', 'application/octet-stream'),
         'valid_hours': 1,
         'expires_at': (datetime.utcnow() + timedelta(hours=1)).isoformat()
