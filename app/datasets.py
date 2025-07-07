@@ -831,3 +831,86 @@ def set_production_status(dataset_id):
         flash(f"Production status removed from dataset '{dataset['name']}' version {dataset['version']}", 'success')
     
     return redirect(url_for('datasets.view_dataset', dataset_id=dataset_id))
+
+@datasets_bp.route('/<dataset_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_dataset(dataset_id):
+    """Edit dataset metadata (tags and description)"""
+    dataset = get_dataset_by_id(dataset_id)
+    if not dataset:
+        flash('Dataset not found', 'error')
+        return redirect(url_for('datasets.list_datasets'))
+    
+    # Check if user has permission to edit
+    if dataset['created_by'] != current_user.username:
+        flash('You can only edit datasets you created', 'error')
+        return redirect(url_for('datasets.view_dataset', dataset_id=dataset_id))
+    
+    # Cannot edit deleted datasets
+    if dataset.get('is_deleted', False):
+        flash('Cannot edit deleted datasets', 'error')
+        return redirect(url_for('datasets.view_dataset', dataset_id=dataset_id))
+    
+    if request.method == 'POST':
+        new_description = request.form.get('description', '').strip()
+        new_tags = [tag.strip() for tag in request.form.get('tags', '').split(',') if tag.strip()]
+        
+        # Validate input
+        if not new_description:
+            flash('Description cannot be empty', 'error')
+            return redirect(request.url)
+        
+        # Track what changed
+        changes = []
+        if dataset['description'] != new_description:
+            changes.append('description')
+        if set(dataset.get('tags', [])) != set(new_tags):
+            changes.append('tags')
+        
+        if not changes:
+            flash('No changes made', 'info')
+            return redirect(url_for('datasets.view_dataset', dataset_id=dataset_id))
+        
+        # Update dataset
+        dataset['description'] = new_description
+        dataset['tags'] = new_tags
+        dataset['updated_at'] = datetime.utcnow().isoformat()
+        dataset['updated_by'] = current_user.username
+        
+        try:
+            container.replace_item(item=dataset['id'], body=dataset)
+            
+            # Log activity
+            change_description = ', '.join(changes)
+            log_user_activity(
+                current_user.username, 
+                'dataset_metadata_updated', 
+                f"Updated {change_description} for dataset '{dataset['name']}'", 
+                dataset_id
+            )
+            
+            flash(f'Dataset metadata updated successfully ({change_description})', 'success')
+            return redirect(url_for('datasets.view_dataset', dataset_id=dataset_id))
+            
+        except Exception as e:
+            flash(f'Failed to update dataset: {str(e)}', 'error')
+            return redirect(request.url)
+    
+    return render_template('datasets/edit.html', dataset=dataset)
+
+@datasets_bp.route('/api/tags')
+@login_required
+def get_all_tags():
+    """Get all unique tags used in datasets for autocomplete"""
+    query = "SELECT c.tags FROM c WHERE c.type = 'dataset' AND NOT IS_DEFINED(c.is_deleted)"
+    datasets = list(container.query_items(query=query, enable_cross_partition_query=True))
+    
+    # Collect all unique tags
+    all_tags = set()
+    for dataset in datasets:
+        tags = dataset.get('tags', [])
+        for tag in tags:
+            all_tags.add(tag.strip())
+    
+    # Return sorted list of tags
+    return jsonify(sorted(list(all_tags)))

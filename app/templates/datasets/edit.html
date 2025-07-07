@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Dataset - {{ dataset.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-edit me-2"></i>
+                        Edit Dataset: {{ dataset.name }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Dataset Name</label>
+                            <input type="text" class="form-control" id="name" value="{{ dataset.name }}" readonly>
+                            <div class="form-text">Dataset name cannot be changed after creation.</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="description" name="description" rows="4" required>{{ dataset.description }}</textarea>
+                            <div class="form-text">Provide a detailed description of the dataset.</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="tags" class="form-label">Tags</label>
+                            
+                            <!-- Visual tag display -->
+                            <div id="tag-display" class="mb-2">
+                                {% for tag in dataset.tags %}
+                                <span class="tag-item badge bg-primary me-1 mb-1">
+                                    {{ tag }}
+                                    <button type="button" class="btn-close btn-close-white btn-sm ms-1" 
+                                            onclick="removeTag('{{ tag }}')" aria-label="Remove tag"></button>
+                                </span>
+                                {% endfor %}
+                            </div>
+                            
+                            <!-- Tag input with autocomplete -->
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="tag-input" 
+                                       placeholder="Type to add tags..." autocomplete="off">
+                                <button type="button" class="btn btn-outline-secondary" onclick="addCurrentTag()">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Hidden input for form submission -->
+                            <input type="hidden" name="tags" id="tags-hidden" 
+                                   value="{{ dataset.tags | join(', ') if dataset.tags else '' }}">
+                            
+                            <!-- Autocomplete dropdown -->
+                            <div id="tag-suggestions" class="dropdown-menu w-100" style="display: none;"></div>
+                            
+                            <div class="form-text">
+                                Use tags to categorize and make your dataset discoverable. 
+                                Press Enter or click + to add tags.
+                            </div>
+                        </div>
+                        
+                        <!-- Popular tags suggestion -->
+                        <div class="mb-3">
+                            <small class="text-muted">Popular tags:</small>
+                            <div id="popular-tags" class="mt-1">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="bg-light p-3 rounded">
+                                <h6>Dataset Information</h6>
+                                <p class="mb-1"><strong>Version:</strong> {{ dataset.version }}</p>
+                                <p class="mb-1"><strong>Created by:</strong> {{ dataset.created_by }}</p>
+                                <p class="mb-1"><strong>Created at:</strong> {{ dataset.created_at }}</p>
+                                {% if dataset.is_production %}
+                                <p class="mb-0"><span class="badge bg-success">Production</span></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('datasets.view_dataset', dataset_id=dataset.id) }}" 
+                               class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-1"></i>
+                                Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>
+                                Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.tag-item {
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+}
+
+.tag-item .btn-close {
+    font-size: 0.65rem;
+    width: 0.8rem;
+    height: 0.8rem;
+}
+
+#tag-suggestions {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    background: white;
+    z-index: 1000;
+}
+
+.suggestion-item {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.suggestion-item:hover {
+    background-color: #f8f9fa;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.popular-tag {
+    font-size: 0.75rem;
+    cursor: pointer;
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentTags = new Set();
+    let allTags = [];
+    
+    // Initialize current tags
+    const existingTags = '{{ dataset.tags | join(", ") if dataset.tags else "" }}';
+    if (existingTags) {
+        existingTags.split(',').forEach(tag => {
+            const trimmedTag = tag.trim();
+            if (trimmedTag) {
+                currentTags.add(trimmedTag);
+            }
+        });
+    }
+    
+    // Fetch all available tags for autocomplete
+    fetch('/datasets/api/tags')
+        .then(response => response.json())
+        .then(tags => {
+            allTags = tags;
+            showPopularTags();
+        })
+        .catch(error => console.error('Error fetching tags:', error));
+    
+    const tagInput = document.getElementById('tag-input');
+    const suggestionsDiv = document.getElementById('tag-suggestions');
+    
+    // Tag input event listeners
+    tagInput.addEventListener('input', handleTagInput);
+    tagInput.addEventListener('keydown', handleKeyDown);
+    tagInput.addEventListener('blur', hideSuggestions);
+    
+    function handleTagInput() {
+        const value = tagInput.value.trim().toLowerCase();
+        
+        if (value.length < 1) {
+            hideSuggestions();
+            return;
+        }
+        
+        // Filter tags that match input and aren't already selected
+        const suggestions = allTags.filter(tag => 
+            tag.toLowerCase().includes(value) && !currentTags.has(tag)
+        ).slice(0, 10); // Limit to 10 suggestions
+        
+        showSuggestions(suggestions, value);
+    }
+    
+    function handleKeyDown(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            addCurrentTag();
+        } else if (event.key === 'Escape') {
+            hideSuggestions();
+        }
+    }
+    
+    function showSuggestions(suggestions, query) {
+        if (suggestions.length === 0) {
+            hideSuggestions();
+            return;
+        }
+        
+        suggestionsDiv.innerHTML = '';
+        
+        suggestions.forEach(tag => {
+            const item = document.createElement('div');
+            item.className = 'suggestion-item';
+            item.textContent = tag;
+            item.addEventListener('mousedown', () => addTag(tag)); // mousedown fires before blur
+            suggestionsDiv.appendChild(item);
+        });
+        
+        // Position and show suggestions
+        const inputRect = tagInput.getBoundingClientRect();
+        suggestionsDiv.style.display = 'block';
+        suggestionsDiv.style.position = 'absolute';
+        suggestionsDiv.style.top = (inputRect.bottom + window.scrollY) + 'px';
+        suggestionsDiv.style.left = inputRect.left + 'px';
+        suggestionsDiv.style.width = inputRect.width + 'px';
+    }
+    
+    function hideSuggestions() {
+        setTimeout(() => {
+            suggestionsDiv.style.display = 'none';
+        }, 150); // Small delay to allow click events
+    }
+    
+    function addCurrentTag() {
+        const value = tagInput.value.trim();
+        if (value) {
+            addTag(value);
+        }
+    }
+    
+    function addTag(tagName) {
+        const trimmedTag = tagName.trim();
+        if (trimmedTag && !currentTags.has(trimmedTag)) {
+            currentTags.add(trimmedTag);
+            updateTagDisplay();
+            updateHiddenInput();
+            tagInput.value = '';
+            hideSuggestions();
+        }
+    }
+    
+    window.removeTag = function(tagName) {
+        currentTags.delete(tagName);
+        updateTagDisplay();
+        updateHiddenInput();
+    }
+    
+    function updateTagDisplay() {
+        const tagDisplay = document.getElementById('tag-display');
+        tagDisplay.innerHTML = '';
+        
+        Array.from(currentTags).sort().forEach(tag => {
+            const tagElement = document.createElement('span');
+            tagElement.className = 'tag-item badge bg-primary me-1 mb-1';
+            tagElement.innerHTML = `
+                ${tag}
+                <button type="button" class="btn-close btn-close-white btn-sm ms-1" 
+                        onclick="removeTag('${tag}')" aria-label="Remove tag"></button>
+            `;
+            tagDisplay.appendChild(tagElement);
+        });
+    }
+    
+    function updateHiddenInput() {
+        document.getElementById('tags-hidden').value = Array.from(currentTags).join(', ');
+    }
+    
+    function showPopularTags() {
+        if (allTags.length === 0) return;
+        
+        // Show top 10 most common tags (excluding already selected ones)
+        const availableTags = allTags.filter(tag => !currentTags.has(tag)).slice(0, 10);
+        const popularTagsDiv = document.getElementById('popular-tags');
+        
+        popularTagsDiv.innerHTML = '';
+        availableTags.forEach(tag => {
+            const tagButton = document.createElement('span');
+            tagButton.className = 'badge bg-light text-dark popular-tag';
+            tagButton.textContent = tag;
+            tagButton.style.cursor = 'pointer';
+            tagButton.addEventListener('click', () => addTag(tag));
+            popularTagsDiv.appendChild(tagButton);
+        });
+    }
+    
+    // Make addCurrentTag available globally
+    window.addCurrentTag = addCurrentTag;
+});
+</script>
+{% endblock %}

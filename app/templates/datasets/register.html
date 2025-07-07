@@ -23,18 +23,38 @@
                         <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
                         <div class="form-text">Describe what this dataset contains, its purpose, and other relevant details.</div>
                     </div>
-                      <div class="mb-3">
-                        <label for="tag-input" class="form-label">Tags</label>
-                        <div class="input-group mb-2">
-                            <input type="text" class="form-control" id="tag-input" placeholder="Enter a tag">
-                            <button class="btn btn-outline-secondary" type="button" id="add-tag-btn">Add Tag</button>
+                    
+                    <div class="mb-3">
+                        <label for="tags" class="form-label">Tags</label>
+                        
+                        <!-- Visual tag display -->
+                        <div id="tag-display" class="mb-2"></div>
+                        
+                        <!-- Tag input with autocomplete -->
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="tag-input" 
+                                   placeholder="Type to add tags..." autocomplete="off">
+                            <button type="button" class="btn btn-outline-secondary" onclick="addCurrentTag()">
+                                <i class="fas fa-plus"></i>
+                            </button>
                         </div>
-                        <div id="tags-container" class="d-flex flex-wrap gap-2 mb-2">
-                            <!-- Tags will be displayed here -->
+                        
+                        <!-- Hidden input for form submission -->
+                        <input type="hidden" name="tags" id="tags-hidden" value="">
+                        
+                        <!-- Autocomplete dropdown -->
+                        <div id="tag-suggestions" class="dropdown-menu w-100" style="display: none;"></div>
+                        
+                        <div class="form-text">
+                            Use tags to categorize and make your dataset discoverable. 
+                            Press Enter or click + to add tags.
                         </div>
-                        <div class="form-text">Click "Add Tag" after typing each tag. Click on a tag to remove it.</div>
-                        <!-- Hidden input to store the actual tags that will be submitted -->
-                        <input type="hidden" id="tags" name="tags">
+                    </div>
+                    
+                    <!-- Popular tags suggestion -->
+                    <div class="mb-3">
+                        <small class="text-muted">Popular tags:</small>
+                        <div id="popular-tags" class="mt-1"></div>
                     </div>
 
                     <div class="d-grid gap-2">
