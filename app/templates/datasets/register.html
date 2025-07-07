@@ -82,77 +82,201 @@
                 </ul>
                 
                 <p>All files will be stored in Azure Blob Storage with metadata in Cosmos DB.</p>
-            </div>        </div>
+            </div>
+        </div>
     </div>
 </div>
+{% endblock %}
 
 {% block scripts %}
+<style>
+.tag-item {
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+}
+
+.tag-item .btn-close {
+    font-size: 0.65rem;
+    width: 0.8rem;
+    height: 0.8rem;
+}
+
+#tag-suggestions {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    background: white;
+    z-index: 1000;
+}
+
+.suggestion-item {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.suggestion-item:hover {
+    background-color: #f8f9fa;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.popular-tag {
+    font-size: 0.75rem;
+    cursor: pointer;
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+</style>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const tagInput = document.getElementById('tag-input');
-        const addTagBtn = document.getElementById('add-tag-btn');
-        const tagsContainer = document.getElementById('tags-container');
-        const hiddenTagsInput = document.getElementById('tags');
+document.addEventListener('DOMContentLoaded', function() {
+    let currentTags = new Set();
+    let allTags = [];
+    
+    // Fetch all available tags for autocomplete
+    fetch('/datasets/api/tags')
+        .then(response => response.json())
+        .then(tags => {
+            allTags = tags;
+            showPopularTags();
+        })
+        .catch(error => console.error('Error fetching tags:', error));
+    
+    const tagInput = document.getElementById('tag-input');
+    const suggestionsDiv = document.getElementById('tag-suggestions');
+    
+    // Tag input event listeners
+    tagInput.addEventListener('input', handleTagInput);
+    tagInput.addEventListener('keydown', handleKeyDown);
+    tagInput.addEventListener('blur', hideSuggestions);
+    
+    function handleTagInput() {
+        const value = tagInput.value.trim().toLowerCase();
         
-        // Array to store the current tags
-        let tags = [];
-        
-        // Function to update the hidden input with the current tags
-        function updateHiddenInput() {
-            hiddenTagsInput.value = tags.join(',');
+        if (value.length < 1) {
+            hideSuggestions();
+            return;
         }
         
-        // Function to add a new tag
-        function addTag() {
-            const tagValue = tagInput.value.trim();
-            
-            if (tagValue && !tags.includes(tagValue)) {
-                // Create tag element
-                const tagElement = document.createElement('span');
-                tagElement.className = 'badge bg-primary py-2 px-3';
-                tagElement.textContent = tagValue;
-                tagElement.style.cursor = 'pointer';
-                
-                // Add click handler for removing tag
-                tagElement.addEventListener('click', function() {
-                    const index = tags.indexOf(tagValue);
-                    if (index > -1) {
-                        tags.splice(index, 1);
-                        tagsContainer.removeChild(tagElement);
-                        updateHiddenInput();
-                    }
-                });
-                
-                // Add tooltip to indicate it can be clicked for removal
-                tagElement.setAttribute('title', 'Click to remove');
-                
-                // Append the new tag
-                tagsContainer.appendChild(tagElement);
-                tags.push(tagValue);
-                updateHiddenInput();
-                
-                // Clear the input
-                tagInput.value = '';
-                tagInput.focus();
-            }
+        // Filter tags that match input and aren't already selected
+        const suggestions = allTags.filter(tag => 
+            tag.toLowerCase().includes(value) && !currentTags.has(tag)
+        ).slice(0, 10); // Limit to 10 suggestions
+        
+        showSuggestions(suggestions, value);
+    }
+    
+    function handleKeyDown(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            addCurrentTag();
+        } else if (event.key === 'Escape') {
+            hideSuggestions();
+        }
+    }
+    
+    function showSuggestions(suggestions, query) {
+        if (suggestions.length === 0) {
+            hideSuggestions();
+            return;
         }
         
-        // Event listeners
-        addTagBtn.addEventListener('click', addTag);
+        suggestionsDiv.innerHTML = '';
         
-        tagInput.addEventListener('keydown', function(e) {
-            // Add tag when Enter or comma is pressed
-            if (e.key === 'Enter' || e.key === ',') {
-                e.preventDefault();
-                addTag();
-            }
+        suggestions.forEach(tag => {
+            const item = document.createElement('div');
+            item.className = 'suggestion-item';
+            item.textContent = tag;
+            item.addEventListener('mousedown', () => addTag(tag)); // mousedown fires before blur
+            suggestionsDiv.appendChild(item);
         });
         
-        // Form submission handling to make sure tags are included
-        document.querySelector('form').addEventListener('submit', function(e) {
+        // Position and show suggestions
+        const inputRect = tagInput.getBoundingClientRect();
+        suggestionsDiv.style.display = 'block';
+        suggestionsDiv.style.position = 'absolute';
+        suggestionsDiv.style.top = (inputRect.bottom + window.scrollY) + 'px';
+        suggestionsDiv.style.left = inputRect.left + 'px';
+        suggestionsDiv.style.width = inputRect.width + 'px';
+    }
+    
+    function hideSuggestions() {
+        setTimeout(() => {
+            suggestionsDiv.style.display = 'none';
+        }, 150); // Small delay to allow click events
+    }
+    
+    function addCurrentTag() {
+        const value = tagInput.value.trim();
+        if (value) {
+            addTag(value);
+        }
+    }
+    
+    function addTag(tagName) {
+        const trimmedTag = tagName.trim();
+        if (trimmedTag && !currentTags.has(trimmedTag)) {
+            currentTags.add(trimmedTag);
+            updateTagDisplay();
             updateHiddenInput();
+            tagInput.value = '';
+            hideSuggestions();
+            showPopularTags(); // Refresh popular tags to exclude newly added tag
+        }
+    }
+    
+    window.removeTag = function(tagName) {
+        currentTags.delete(tagName);
+        updateTagDisplay();
+        updateHiddenInput();
+        showPopularTags(); // Refresh popular tags to include removed tag
+    }
+    
+    function updateTagDisplay() {
+        const tagDisplay = document.getElementById('tag-display');
+        tagDisplay.innerHTML = '';
+        
+        Array.from(currentTags).sort().forEach(tag => {
+            const tagElement = document.createElement('span');
+            tagElement.className = 'tag-item badge bg-primary me-1 mb-1';
+            tagElement.innerHTML = `
+                ${tag}
+                <button type="button" class="btn-close btn-close-white btn-sm ms-1" 
+                        onclick="removeTag('${tag}')" aria-label="Remove tag"></button>
+            `;
+            tagDisplay.appendChild(tagElement);
         });
-    });
+    }
+    
+    function updateHiddenInput() {
+        document.getElementById('tags-hidden').value = Array.from(currentTags).join(', ');
+    }
+    
+    function showPopularTags() {
+        if (allTags.length === 0) return;
+        
+        // Show top 10 most common tags (excluding already selected ones)
+        const availableTags = allTags.filter(tag => !currentTags.has(tag)).slice(0, 10);
+        const popularTagsDiv = document.getElementById('popular-tags');
+        
+        popularTagsDiv.innerHTML = '';
+        availableTags.forEach(tag => {
+            const tagButton = document.createElement('span');
+            tagButton.className = 'badge bg-light text-dark popular-tag';
+            tagButton.textContent = tag;
+            tagButton.style.cursor = 'pointer';
+            tagButton.addEventListener('click', () => addTag(tag));
+            popularTagsDiv.appendChild(tagButton);
+        });
+    }
+    
+    // Make addCurrentTag available globally
+    window.addCurrentTag = addCurrentTag;
+});
 </script>
-{% endblock %}
 {% endblock %}
