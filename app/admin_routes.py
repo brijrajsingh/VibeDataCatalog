@@ -141,3 +141,59 @@ def approve_user(user_id):
         pass
     
     return jsonify({'success': True, 'message': f"User {user['username']} has been approved"})
+
+@admin_bp.route('/api/users/<user_id>/password', methods=['PUT'])
+@login_required
+@admin_required
+def change_user_password(user_id):
+    """API endpoint to change a user's password"""
+    data = request.get_json()
+    new_password = data.get('password')
+    
+    if not new_password:
+        return jsonify({'success': False, 'error': 'Password is required'}), 400
+    
+    if len(new_password) < 6:
+        return jsonify({'success': False, 'error': 'Password must be at least 6 characters long'}), 400
+    
+    # Get the user
+    query = f"SELECT * FROM c WHERE c.type = 'user' AND c.id = '{user_id}'"
+    items = list(container.query_items(query=query, enable_cross_partition_query=True))
+    
+    if not items:
+        return jsonify({'success': False, 'error': 'User not found'}), 404
+    
+    user = items[0]
+    
+    # Check if user has role 'user' (not admin)
+    if user.get('role') != 'user':
+        return jsonify({'success': False, 'error': 'Can only change password for users with role "user"'}), 400
+    
+    # Hash the new password
+    from werkzeug.security import generate_password_hash
+    hashed_password = generate_password_hash(new_password)
+    
+    # Update user password
+    user['password'] = hashed_password
+    container.replace_item(item=user['id'], body=user)
+    
+    # Log this activity
+    try:
+        activity = {
+            'id': str(uuid.uuid4()),
+            'type': 'activity',
+            'username': current_user.username,
+            'timestamp': datetime.utcnow().isoformat(),
+            'activity_type': 'password_changed',
+            'message': f"Changed password for user '{user['username']}'",
+            'target_user': user['username']
+        }
+        container.create_item(body=activity)
+    except Exception:
+        # Don't fail if activity tracking fails
+        pass
+    
+    return jsonify({
+        'success': True, 
+        'message': f'Password successfully changed for user {user.get("username")}'
+    })
