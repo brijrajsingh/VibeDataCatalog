@@ -3,18 +3,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import json
 import os
-from azure.cosmos import CosmosClient
-
-# Configuration for Azure Cosmos DB
-ENDPOINT = os.environ.get("COSMOSDB_ENDPOINT")
-KEY = os.environ.get("COSMOSDB_KEY")
-DATABASE_NAME = os.environ.get("COSMOSDB_DATABASE")
-CONTAINER_NAME = os.environ.get("COSMOSDB_CONTAINER")
-
-# Initialize CosmosDB client
-client = CosmosClient(ENDPOINT, credential=KEY)
-database = client.get_database_client(DATABASE_NAME)
-container = database.get_container_client(CONTAINER_NAME)
+from .cosmos_client import users_container
 
 # Initialize login manager
 login_manager = LoginManager()
@@ -35,9 +24,9 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    # Query the user from CosmosDB
-    query = f"SELECT * FROM c WHERE c.type = 'user' AND c.id = '{user_id}'"
-    items = list(container.query_items(query=query, enable_cross_partition_query=True))
+    # Query the user from users container (no type filter needed)
+    query = f"SELECT * FROM c WHERE c.id = '{user_id}'"
+    items = list(users_container.query_items(query=query, enable_cross_partition_query=True))
     
     if not items:
         return None
@@ -55,8 +44,8 @@ def load_user(user_id):
 
 def get_user_by_api_key(api_key):
     """Get user by API key"""
-    query = f"SELECT * FROM c WHERE c.type = 'user' AND c.api_key = '{api_key}'"
-    items = list(container.query_items(query=query, enable_cross_partition_query=True))
+    query = f"SELECT * FROM c WHERE c.api_key = '{api_key}'"
+    items = list(users_container.query_items(query=query, enable_cross_partition_query=True))
     
     if not items:
         return None
@@ -78,15 +67,15 @@ def generate_new_api_key(user_id):
     new_api_key = str(uuid.uuid4())
     
     # Get the user
-    query = f"SELECT * FROM c WHERE c.type = 'user' AND c.id = '{user_id}'"
-    items = list(container.query_items(query=query, enable_cross_partition_query=True))
+    query = f"SELECT * FROM c WHERE c.id = '{user_id}'"
+    items = list(users_container.query_items(query=query, enable_cross_partition_query=True))
     
     if not items:
         return None
     
     user = items[0]
     user['api_key'] = new_api_key
-    container.replace_item(item=user['id'], body=user)
+    users_container.replace_item(item=user['id'], body=user)
     
     return new_api_key
 
@@ -97,9 +86,9 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        # Query the user
-        query = f"SELECT * FROM c WHERE c.type = 'user' AND c.username = '{username}'"
-        items = list(container.query_items(query=query, enable_cross_partition_query=True))
+        # Query the user from users container
+        query = f"SELECT * FROM c WHERE c.username = '{username}'"
+        items = list(users_container.query_items(query=query, enable_cross_partition_query=True))
         
         if not items or not check_password_hash(items[0]['password'], password):
             flash('Please check your login details and try again.')
@@ -144,21 +133,20 @@ def signup():
         email = request.form.get('email')
         password = request.form.get('password')
         
-        # Check if user already exists
-        query = f"SELECT * FROM c WHERE c.type = 'user' AND (c.username = '{username}' OR c.email = '{email}')"
-        items = list(container.query_items(query=query, enable_cross_partition_query=True))
+        # Check if user already exists in users container
+        query = f"SELECT * FROM c WHERE c.username = '{username}' OR c.email = '{email}'"
+        items = list(users_container.query_items(query=query, enable_cross_partition_query=True))
         
         if items:
             flash('Username or Email already exists')
             return redirect(url_for('auth.signup'))
         
-        # Create a new user with unverified status and API key
+        # Create a new user (no 'type' field needed in separate container)
         import uuid
         user_id = str(uuid.uuid4())
         api_key = str(uuid.uuid4())
         new_user = {
             'id': user_id,
-            'type': 'user',
             'username': username,
             'email': email,
             'password': generate_password_hash(password),
@@ -167,7 +155,7 @@ def signup():
             'api_key': api_key
         }
         
-        container.create_item(body=new_user)
+        users_container.create_item(body=new_user)
         flash('Account created successfully! Please wait for admin verification before logging in.')
         
         return redirect(url_for('auth.login'))

@@ -1,21 +1,10 @@
 from flask import Blueprint, render_template, jsonify, request, flash, redirect, url_for
 from flask_login import login_required, current_user
-from azure.cosmos import CosmosClient
 import os
 from datetime import datetime
 import uuid
 import functools
-
-# Azure Configuration
-ENDPOINT = os.environ.get("COSMOSDB_ENDPOINT")
-KEY = os.environ.get("COSMOSDB_KEY")
-DATABASE_NAME = os.environ.get("COSMOSDB_DATABASE")
-CONTAINER_NAME = os.environ.get("COSMOSDB_CONTAINER")
-
-# Initialize CosmosClient
-client = CosmosClient(ENDPOINT, credential=KEY)
-database = client.get_database_client(DATABASE_NAME)
-container = database.get_container_client(CONTAINER_NAME)
+from .cosmos_client import users_container, activities_container
 
 # Blueprint for admin routes
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -42,8 +31,8 @@ def manage_users():
 @admin_required
 def get_users():
     """API endpoint to get all users for admin"""
-    query = "SELECT c.id, c.username, c.email, c.role, c.status, c._ts FROM c WHERE c.type = 'user' ORDER BY c._ts DESC"
-    users = list(container.query_items(query=query, enable_cross_partition_query=True))
+    query = "SELECT c.id, c.username, c.email, c.role, c.status, c._ts FROM c ORDER BY c._ts DESC"
+    users = list(users_container.query_items(query=query, enable_cross_partition_query=True))
     
     return jsonify({'users': users})
 
@@ -58,9 +47,9 @@ def update_user_status(user_id):
     if new_status not in ['unverified', 'active', 'inactive']:
         return jsonify({'error': 'Invalid status'}), 400
     
-    # Get the user
-    query = f"SELECT * FROM c WHERE c.type = 'user' AND c.id = '{user_id}'"
-    items = list(container.query_items(query=query, enable_cross_partition_query=True))
+    # Get the user from users container
+    query = f"SELECT * FROM c WHERE c.id = '{user_id}'"
+    items = list(users_container.query_items(query=query, enable_cross_partition_query=True))
     
     if not items:
         return jsonify({'error': 'User not found'}), 404
@@ -73,20 +62,19 @@ def update_user_status(user_id):
     
     # Update user status
     user['status'] = new_status
-    container.replace_item(item=user['id'], body=user)
+    users_container.replace_item(item=user['id'], body=user)
     
-    # Log this activity
+    # Log this activity in activities container
     try:
         activity = {
             'id': str(uuid.uuid4()),
-            'type': 'activity',
             'username': current_user.username,
             'timestamp': datetime.utcnow().isoformat(),
             'activity_type': 'user_status_update',
             'message': f"Updated user '{user['username']}' status to '{new_status}'",
             'target_user': user['username']
         }
-        container.create_item(body=activity)
+        activities_container.create_item(body=activity)
     except Exception:
         # Don't fail if activity tracking fails
         pass
@@ -100,8 +88,8 @@ def get_pending_users():
     """API endpoint to get users pending verification"""
     print(f"get_pending_users called by user: {current_user.username}, role: {current_user.role}")
     
-    query = "SELECT c.id, c.username, c.email, c._ts FROM c WHERE c.type = 'user' AND c.status = 'unverified' ORDER BY c._ts DESC"
-    users = list(container.query_items(query=query, enable_cross_partition_query=True))
+    query = "SELECT c.id, c.username, c.email, c._ts FROM c WHERE c.status = 'unverified' ORDER BY c._ts DESC"
+    users = list(users_container.query_items(query=query, enable_cross_partition_query=True))
     
     print(f"Found {len(users)} pending users")
     
@@ -113,8 +101,8 @@ def get_pending_users():
 def approve_user(user_id):
     """API endpoint to approve a user (set status to active)"""
     # Get the user
-    query = f"SELECT * FROM c WHERE c.type = 'user' AND c.id = '{user_id}'"
-    items = list(container.query_items(query=query, enable_cross_partition_query=True))
+    query = f"SELECT * FROM c WHERE c.id = '{user_id}'"
+    items = list(users_container.query_items(query=query, enable_cross_partition_query=True))
     
     if not items:
         return jsonify({'error': 'User not found'}), 404
@@ -123,20 +111,19 @@ def approve_user(user_id):
     
     # Update user status to active
     user['status'] = 'active'
-    container.replace_item(item=user['id'], body=user)
+    users_container.replace_item(item=user['id'], body=user)
     
-    # Log this activity
+    # Log this activity in activities container
     try:
         activity = {
             'id': str(uuid.uuid4()),
-            'type': 'activity',
             'username': current_user.username,
             'timestamp': datetime.utcnow().isoformat(),
             'activity_type': 'user_approved',
             'message': f"Approved user '{user['username']}'",
             'target_user': user['username']
         }
-        container.create_item(body=activity)
+        activities_container.create_item(body=activity)
     except Exception:
         pass
     
@@ -157,8 +144,8 @@ def change_user_password(user_id):
         return jsonify({'success': False, 'error': 'Password must be at least 6 characters long'}), 400
     
     # Get the user
-    query = f"SELECT * FROM c WHERE c.type = 'user' AND c.id = '{user_id}'"
-    items = list(container.query_items(query=query, enable_cross_partition_query=True))
+    query = f"SELECT * FROM c WHERE c.id = '{user_id}'"
+    items = list(users_container.query_items(query=query, enable_cross_partition_query=True))
     
     if not items:
         return jsonify({'success': False, 'error': 'User not found'}), 404
@@ -175,20 +162,19 @@ def change_user_password(user_id):
     
     # Update user password
     user['password'] = hashed_password
-    container.replace_item(item=user['id'], body=user)
+    users_container.replace_item(item=user['id'], body=user)
     
-    # Log this activity
+    # Log this activity in activities container
     try:
         activity = {
             'id': str(uuid.uuid4()),
-            'type': 'activity',
             'username': current_user.username,
             'timestamp': datetime.utcnow().isoformat(),
             'activity_type': 'password_changed',
             'message': f"Changed password for user '{user['username']}'",
             'target_user': user['username']
         }
-        container.create_item(body=activity)
+        activities_container.create_item(body=activity)
     except Exception:
         # Don't fail if activity tracking fails
         pass
