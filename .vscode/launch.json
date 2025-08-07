@@ -11,15 +11,23 @@
             "module": "flask",
             "env": {
                 "FLASK_APP": "run.py",
-                "FLASK_DEBUG": "1"
+                "FLASK_DEBUG": "1",
+                "FLASK_ENV": "development",
+                "PYTHONPATH": "${workspaceFolder}"
             },
             "args": [
                 "run",
-                "--no-debugger",
-                "--no-reload"
+                "--debug",
+                "--reload",
+                "--host=0.0.0.0",
+                "--port=5000"
             ],
             "jinja": true,
-            "autoStartBrowser": false
+            "autoStartBrowser": false,
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

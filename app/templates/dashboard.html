@@ -79,7 +79,7 @@
             <div class="card-header">
                 <h5 class="card-title mb-0">Popular Tags</h5>
             </div>
-            <div class="card-body">
+            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
                 <div id="tags-loading">Loading...</div>
                 <div id="tags-cloud" style="display: none;">
                     <!-- Will be populated via AJAX -->
@@ -205,19 +205,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // Sort tags by count
+            // Sort tags by count and take top 30
             const sortedTags = Object.entries(data.tags)
-                .sort((a, b) => b[1] - a[1]);
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 30); // Show top 30 tags
             
-            sortedTags.forEach(([tag, count]) => {
+            sortedTags.forEach(([tag, count], index) => {
                 const tagElement = document.createElement('a');
                 tagElement.href = `/datasets/search?query=tag:${tag}`;
-                tagElement.className = 'tag';
-                tagElement.style.fontSize = `${Math.max(100, 100 + count * 10)}%`;
-                tagElement.textContent = tag;
+                tagElement.className = 'badge bg-info text-white me-1 mb-1 text-decoration-none';
+                // Adjust font size - top tags larger, gradually smaller
+                const fontSize = Math.max(11, 15 - Math.floor(index / 5) * 1);
+                tagElement.style.fontSize = `${fontSize}px`;
+                tagElement.style.padding = '0.3rem 0.5rem';
+                tagElement.title = `${count} dataset${count > 1 ? 's' : ''}`;
+                tagElement.innerHTML = `${tag} <small class="ms-1">(${count})</small>`;
+                
+                // Add hover effect
+                tagElement.addEventListener('mouseenter', function() {
+                    this.classList.remove('bg-info');
+                    this.classList.add('bg-primary');
+                });
+                tagElement.addEventListener('mouseleave', function() {
+                    this.classList.remove('bg-primary');
+                    this.classList.add('bg-info');
+                });
                 
                 container.appendChild(tagElement);
-                container.appendChild(document.createTextNode(' '));
             });
         })
         .catch(error => {
@@ -228,7 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Create chart
     fetch('/api/dataset_stats')
         .then(response => response.json())
-        .then(data => {
+        .then((data) => {  // Fixed: Added parentheses around 'data'
             const ctx = document.getElementById('datasets-chart').getContext('2d');
             new Chart(ctx, {
                 type: 'bar',
@@ -276,7 +290,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return response.json();
             })
-            .then(data => {
+            .then((data) => {
                 console.log('Pending users data:', data);
                 const countElement = document.getElementById('pending-count');
                 const listElement = document.getElementById('pending-users-list');

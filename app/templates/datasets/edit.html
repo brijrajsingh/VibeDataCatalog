@@ -14,10 +14,11 @@
                     </h4>
                 </div>
                 <div class="card-body">
-                    <form method="POST">
+                    <form method="POST" id="edit-dataset-form">
                         <div class="mb-3">
                             <label for="name" class="form-label">Dataset Name</label>
-                            <input type="text" class="form-control" id="name" value="{{ dataset.name }}" readonly>
+                            <input type="text" class="form-control" id="name" value="{{ dataset.name }}" readonly
+                                   data-original-name="{{ dataset.name }}">
                             <div class="form-text">Dataset name cannot be changed after creation.</div>
                         </div>
                         
@@ -148,7 +149,49 @@
 </style>
 
 <script>
+// Dataset name validation (for future use if editing is enabled)
+function validateDatasetName(value) {
+    const pattern = /^[a-zA-Z0-9][a-zA-Z0-9\s\-_]*$/;
+    return pattern.test(value);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    // Form validation on submit
+    const form = document.getElementById('edit-dataset-form');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            const description = document.getElementById('description');
+            
+            // Validate description is not empty
+            if (!description.value.trim()) {
+                event.preventDefault();
+                description.classList.add('is-invalid');
+                description.focus();
+                
+                // Add error message
+                let errorDiv = description.nextElementSibling;
+                if (!errorDiv || !errorDiv.classList.contains('invalid-feedback')) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'invalid-feedback';
+                    errorDiv.textContent = 'Description is required.';
+                    description.parentNode.insertBefore(errorDiv, description.nextSibling);
+                }
+                
+                return false;
+            }
+        });
+        
+        // Remove validation error on input
+        const description = document.getElementById('description');
+        if (description) {
+            description.addEventListener('input', function() {
+                if (this.value.trim()) {
+                    this.classList.remove('is-invalid');
+                }
+            });
+        }
+    }
+    
     let currentTags = new Set();
     let allTags = [];
     
