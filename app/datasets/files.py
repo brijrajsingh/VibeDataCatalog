@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from azure.storage.blob import BlobServiceClient
 import os
+import io
 from ..cosmos_client import metadata_container
 from ..utils import blob_service_client, AZURE_BLOB_CONTAINER
 from .models import DatasetModel

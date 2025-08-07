@@ -245,13 +245,23 @@ def sanitize_dataset_name(name):
     
     return name
 
+def get_local_timezone(browser_timezone=None):
+    """Get the local timezone, defaulting to UTC if not provided."""
+    if browser_timezone:
+        try:
+            return pytz.timezone(browser_timezone)
+        except pytz.exceptions.UnknownTimeZoneError:
+            pass
+    return pytz.UTC
+
 def convert_to_local_time(datasets, timezone='Asia/Calcutta'):
     """Convert UTC timestamps to local timezone"""
+    localFormat = "%Y-%m-%d %H:%M:%S"  # Define format at function level
+    
     for dataset in datasets:
         if 'created_at' in dataset:
             utc_time = datetime.fromisoformat(dataset['created_at'])
             utcmoment = utc_time.replace(tzinfo=pytz.utc)
-            localFormat = "%Y-%m-%d %H:%M:%S"
             local_time = utcmoment.astimezone(pytz.timezone(timezone))
             dataset['created_at_local'] = local_time.strftime(localFormat)
         
@@ -290,6 +300,15 @@ def log_user_activity(username, activity_type, message, dataset_id=None, file_id
             'message': message
         }
         
+        if dataset_id:
+            activity['dataset_id'] = dataset_id
+        if file_id:
+            activity['file_id'] = file_id
+        
+        activities_container.create_item(body=activity)
+    except Exception:
+        # Don't fail if activity tracking fails
+        pass
         if dataset_id:
             activity['dataset_id'] = dataset_id
         if file_id:
