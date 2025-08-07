@@ -19,7 +19,7 @@
     <div class="col-md-8">
         <div class="card">
             <div class="card-body">
-                <form method="POST" action="{{ url_for('datasets.new_version', dataset_id=dataset.id) }}">
+                <form method="POST" action="{{ url_for('datasets.new_version', dataset_id=dataset.id) }}" id="new-version-form">
                     <div class="mb-3">
                         <label for="description" class="form-label">Description</label>
                         <textarea class="form-control" id="description" name="description" rows="3" required>{{ dataset.description }}</textarea>
@@ -72,6 +72,23 @@
 
 {% block scripts %}
 <script>
+    // Dataset name validation function (if name editing is enabled in future)
+    function validateDatasetName(input) {
+        const value = input.value;
+        const pattern = /^[a-zA-Z0-9][a-zA-Z0-9\s\-_]*$/;
+        
+        if (!pattern.test(value) && value.length > 0) {
+            input.classList.add('is-invalid');
+            input.classList.remove('is-valid');
+            return false;
+        } else if (value.length > 0) {
+            input.classList.remove('is-invalid');
+            input.classList.add('is-valid');
+            return true;
+        }
+        return true;
+    }
+    
     document.addEventListener('DOMContentLoaded', function() {
         const tagInput = document.getElementById('tag-input');
         const addTagBtn = document.getElementById('add-tag-btn');
@@ -161,6 +178,14 @@
         // Form submission handling to make sure tags are included
         document.querySelector('form').addEventListener('submit', function(e) {
             updateHiddenInput();
+            
+            // Add any additional validation here if needed
+            const form = e.target;
+            if (!form.checkValidity()) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            form.classList.add('was-validated');
         });
         
         // Initialize tags from the hidden input

@@ -1,127 +1,127 @@
-# Data Catalog & Lineage Tool
+# Vibe Data Catalog
 
-A web application for managing datasets, tracking data lineage, and discovering relevant data assets within your organization.
+A comprehensive data catalog and lineage tracking system built with Flask and Azure services.
 
 ## Features
 
-- **Dataset Registration**: Create and maintain dataset metadata with tags and descriptions
-- **File Management**: Upload CSV and Excel files to datasets with storage in Azure Blob Storage
-- **File Preview**: View CSV and Excel files directly in the browser without downloading
-- **Versioning**: Track dataset versions and changes over time
-- **Lineage Tracking**: Visualize how datasets evolve and relate to each other
-- **Search & Discovery**: Find relevant datasets through powerful search queries
-- **User Management**: Authentication and activity tracking
-- **Soft Delete**: Safely delete and restore datasets as needed
+- Dataset registration and versioning
+- File upload and management with Azure Blob Storage
+- Data lineage tracking and visualization
+- Tag-based categorization and search
+- User authentication and authorization
+- API access for programmatic interaction
 
-## Technology Stack
+## Prerequisites
 
-- **Frontend**: HTML, CSS, JavaScript with Bootstrap 5
-- **Backend**: Python 3.9+ with Flask web framework
-- **Database**: Azure Cosmos DB for metadata storage
-- **Storage**: Azure Blob Storage for file storage
-- **Authentication**: Custom user authentication with password hashing
-- **Visualization**: D3.js for lineage visualization
-
-## Setup Instructions
-
-### Prerequisites
-
-- Python 3.9+
+- Python 3.10 or higher
 - Azure Cosmos DB account
 - Azure Blob Storage account
+- uv (Python package manager)
 
-### Environment Configuration
+## Installation
 
-1. Copy the `.env.example` file to `.env`:
-   ```
-   cp .env.example .env
-   ```
+### Install uv
 
-2. Update the `.env` file with your Azure credentials:
-   ```
-   # Azure Settings
-   COSMOSDB_ENDPOINT=your_cosmosdb_endpoint
-   COSMOSDB_KEY=your_cosmosdb_key
-   COSMOSDB_DATABASE=datacatalog
-   COSMOSDB_CONTAINER=metadata
+```bash
+# On macOS and Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-   # Azure Blob Storage
-   AZURE_STORAGE_CONNECTION_STRING=your_storage_connection_string
-   AZURE_BLOB_CONTAINER=datasets
+# On Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-   # Flask Settings
-   SECRET_KEY=your_random_secret_key
-   FLASK_ENV=development
-   ```
+# Or using pip
+pip install uv
+```
 
-### Installation
+### Setup Project
 
-1. Create a virtual environment:
-   ```
-   python -m venv venv
-   ```
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd VibeDataCatalog
+```
 
-2. Activate the virtual environment:
-   - Windows: `venv\Scripts\activate`
-   - Unix/MacOS: `source venv/bin/activate`
+2. Create environment file:
+```bash
+cp .env.template .env
+# Edit .env with your Azure credentials and configuration
+```
 
-3. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
+3. Create virtual environment and install dependencies using uv:
+```bash
+# Create virtual environment
+uv venv
 
-### Running the Application
+# Activate virtual environment
+# On macOS/Linux:
+source .venv/bin/activate
+# On Windows:
+.venv\Scripts\activate
 
-1. Start the Flask development server:
-   ```
-   python run.py
-   ```
+# Install dependencies
+uv pip install -e .
 
-2. Access the application at http://localhost:5000
+# Or install with dev dependencies
+uv pip install -e ".[dev]"
+```
 
-### Docker Deployment
+4. Initialize the database:
+```bash
+python init_db.py
+```
 
-1. Build the Docker image:
-   ```
-   docker build -t datacatalog .
-   ```
+5. Run the application:
+```bash
+flask run
+# Or
+python run.py
+```
 
-2. Run the Docker container:
-   ```
-   docker run -p 5000:5000 --env-file .env datacatalog
-   ```
+## Development
 
-## Azure Setup
+### Using uv for package management
 
-### Cosmos DB
+```bash
+# Add a new dependency
+uv pip install package-name
+uv pip freeze > requirements.txt
 
-1. Create a Cosmos DB account in Azure Portal
-2. Create a database named `datacatalog`
-3. Create a container named `metadata` with partition key `/type`
+# Install from requirements.txt
+uv pip install -r requirements.txt
 
-### Blob Storage
+# Upgrade packages
+uv pip install --upgrade package-name
 
-1. Create a Storage Account in Azure Portal
-2. Create a Blob container named `datasets`
-3. Get the connection string from Access Keys in the Storage Account settings
+# Install in editable mode for development
+uv pip install -e .
+```
 
-## Usage Guide
+### Running tests
 
-### Registering a Dataset
+```bash
+pytest
+# With coverage
+pytest --cov=app
+```
 
-1. Click "Register Dataset" in the sidebar
-2. Fill in dataset name, description, and tags
-3. Submit the form to register the dataset metadata
+### Code formatting
 
-### Uploading Files
+```bash
+black app/
+flake8 app/
+```
 
-1. Navigate to a dataset's detail page
-2. Click "Upload File"
-3. Select a CSV or Excel file from your computer
-4. Submit to upload the file to Azure Blob Storage
+## API Usage
 
-### Creating New Versions
+The application provides REST API endpoints for programmatic access. See the user profile page after login for API key and usage examples.
 
+## Environment Variables
+
+See `.env.template` for all available configuration options.
+
+## License
+
+[Your License Here]
 1. Navigate to a dataset's detail page
 2. Click "New Version"
 3. Update description and tags as needed

@@ -78,6 +78,39 @@
             pointer-events: none;
             z-index: 10;
         }
+        
+        /* Validation feedback styles */
+        .is-invalid {
+            border-color: #dc3545 !important;
+        }
+        
+        .is-valid {
+            border-color: #28a745 !important;
+        }
+        
+        .invalid-feedback {
+            display: none;
+            width: 100%;
+            margin-top: 0.25rem;
+            font-size: 0.875em;
+            color: #dc3545;
+        }
+        
+        .is-invalid ~ .invalid-feedback {
+            display: block;
+        }
+        
+        .valid-feedback {
+            display: none;
+            width: 100%;
+            margin-top: 0.25rem;
+            font-size: 0.875em;
+            color: #28a745;
+        }
+        
+        .is-valid ~ .valid-feedback {
+            display: block;
+        }
     </style>
     {% block head %}{% endblock %}
 </head>

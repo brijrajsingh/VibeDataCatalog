@@ -14,8 +14,13 @@
                 <form method="POST" action="{{ url_for('datasets.register_dataset') }}">
                     <div class="mb-3">
                         <label for="name" class="form-label">Dataset Name</label>
-                        <input type="text" class="form-control" id="name" name="name" required>
-                        <div class="form-text">Choose a meaningful name for your dataset.</div>
+                        <input type="text" class="form-control" id="name" name="name" required 
+                               pattern="^[a-zA-Z0-9][a-zA-Z0-9\s\-_]*$"
+                               oninput="validateDatasetName(this)">
+                        <div class="invalid-feedback" id="name-error">
+                            Dataset name can only contain letters, numbers, spaces, hyphens, and underscores. Must start with a letter or number.
+                        </div>
+                        <div class="form-text">Choose a meaningful name for your dataset. Only alphanumeric characters, spaces, hyphens, and underscores are allowed.</div>
                     </div>
                     
                     <div class="mb-3">
@@ -134,7 +139,65 @@
 </style>
 
 <script>
+// Dataset name validation function
+function validateDatasetName(input) {
+    const value = input.value;
+    const pattern = /^[a-zA-Z0-9][a-zA-Z0-9\s\-_]*$/;
+    const errorDiv = document.getElementById('name-error');
+    
+    if (value.length === 0) {
+        input.classList.remove('is-invalid');
+        input.classList.remove('is-valid');
+        return;
+    }
+    
+    if (!pattern.test(value)) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        
+        // Provide specific error messages
+        if (/^[^a-zA-Z0-9]/.test(value)) {
+            errorDiv.textContent = 'Dataset name must start with a letter or number.';
+        } else if (/[^a-zA-Z0-9\s\-_]/.test(value)) {
+            errorDiv.textContent = 'Dataset name contains invalid characters. Only letters, numbers, spaces, hyphens, and underscores are allowed.';
+        }
+    } else {
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+    }
+}
+
+// Prevent form submission if validation fails
 document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const nameInput = document.getElementById('name');
+    
+    form.addEventListener('submit', function(event) {
+        validateDatasetName(nameInput);
+        
+        if (nameInput.classList.contains('is-invalid')) {
+            event.preventDefault();
+            event.stopPropagation();
+            nameInput.focus();
+            
+            // Show alert
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+            alertDiv.innerHTML = `
+                <strong>Validation Error!</strong> Please fix the dataset name before submitting.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            form.insertBefore(alertDiv, form.firstChild);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+            
+            return false;
+        }
+    });
+    
     let currentTags = new Set();
     let allTags = [];
     
