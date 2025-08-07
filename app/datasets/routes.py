@@ -4,7 +4,8 @@ from datetime import datetime
 from .models import DatasetModel
 from .files import FileManager
 from .search import DatasetSearch
-from .utils import convert_to_local_time, group_datasets_by_base_name, log_user_activity
+from ..utils import convert_to_local_time, group_datasets_by_base_name, log_user_activity, validate_dataset_name, sanitize_dataset_name
+from ..cosmos_client import metadata_container
 
 # Blueprint for dataset routes
 datasets_bp = Blueprint('datasets', __name__, url_prefix='/datasets')
@@ -27,9 +28,18 @@ def list_datasets():
 def register_dataset():
     """Register a new dataset"""
     if request.method == 'POST':
-        name = request.form.get('name')
+        name = request.form.get('name', '').strip()
         description = request.form.get('description')
         tags = [tag.strip() for tag in request.form.get('tags', '').split(',') if tag.strip()]
+        
+        # Validate dataset name
+        is_valid, error_message = validate_dataset_name(name)
+        if not is_valid:
+            flash(error_message, 'error')
+            return render_template('datasets/register.html', 
+                                   name=name, 
+                                   description=description, 
+                                   tags=','.join(tags))
         
         try:
             dataset_id, dataset = DatasetModel.create(
@@ -43,7 +53,10 @@ def register_dataset():
             return redirect(url_for('datasets.view_dataset', dataset_id=dataset_id))
         except ValueError as e:
             flash(str(e), 'error')
-            return redirect(request.url)
+            return render_template('datasets/register.html', 
+                                   name=name, 
+                                   description=description, 
+                                   tags=','.join(tags))
     
     return render_template('datasets/register.html')
 
@@ -386,3 +399,22 @@ def get_all_tags():
     """Get all unique tags used in datasets for autocomplete"""
     tags = DatasetModel.get_all_tags()
     return jsonify(tags)
+
+# Add a new route for name validation API
+@datasets_bp.route('/api/validate_name', methods=['POST'])
+@login_required
+def validate_name():
+    """Validate dataset name via AJAX"""
+    data = request.get_json()
+    name = data.get('name', '')
+    
+    is_valid, error_message = validate_dataset_name(name)
+    
+    if is_valid:
+        # Also check for duplicates
+        query = f"SELECT * FROM c WHERE c.name = '{name}' AND NOT IS_DEFINED(c.is_deleted)"
+        existing = list(metadata_container.query_items(query=query, enable_cross_partition_query=True))
+        if existing:
+            return jsonify({'valid': False, 'message': 'A dataset with this name already exists'})
+    
+    return jsonify({'valid': is_valid, 'message': error_message})

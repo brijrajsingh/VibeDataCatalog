@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from ..cosmos_client import metadata_container
+from ..utils import validate_dataset_name, sanitize_dataset_name
 
 class DatasetModel:
     """Dataset data access and business logic"""
@@ -16,6 +17,11 @@ class DatasetModel:
     def create(name, description, tags, created_by, version=None, parent_id=None, base_name=None):
         """Create a new dataset record"""
         if not parent_id:
+            # Validate dataset name for new datasets
+            is_valid, error_message = validate_dataset_name(name)
+            if not is_valid:
+                raise ValueError(f"Invalid dataset name: {error_message}")
+            
             # Check for name conflicts when creating brand new datasets
             query = f"SELECT * FROM c WHERE c.name = '{name}' AND NOT IS_DEFINED(c.is_deleted)"
             existing_datasets = list(metadata_container.query_items(query=query, enable_cross_partition_query=True))
@@ -40,6 +46,9 @@ class DatasetModel:
                 versions = [item['version'] for item in version_items if 'version' in item]
                 max_version = max(versions) if versions else 0
                 version = max_version + 1
+            
+            # For versioned datasets, construct the name with version
+            name = f"{base_name} v{version}"
         
         # Create dataset record
         dataset_id = str(uuid.uuid4())

@@ -1,16 +1,10 @@
 import uuid
-import os
-import io
 from datetime import datetime
 from azure.storage.blob import BlobServiceClient
+import os
+from ..cosmos_client import metadata_container
+from ..utils import blob_service_client, AZURE_BLOB_CONTAINER
 from .models import DatasetModel
-
-# Azure Blob Storage configuration
-AZURE_STORAGE_CONNECTION_STRING = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
-AZURE_BLOB_CONTAINER = os.environ.get("AZURE_BLOB_CONTAINER")
-
-# Initialize Blob Storage client
-blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
 
 class FileManager:
     """Handle file operations for datasets"""

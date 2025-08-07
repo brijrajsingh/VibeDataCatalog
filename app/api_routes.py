@@ -8,7 +8,7 @@ from .cosmos_client import metadata_container, activities_container
 from .datasets.models import DatasetModel
 from .datasets.files import FileManager
 from .datasets.search import DatasetSearch
-from .datasets.utils import log_user_activity
+from .utils import log_user_activity, validate_dataset_name
 
 # Blueprint for API routes
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -198,6 +198,13 @@ def api_create_dataset():
         if field not in data:
             return jsonify({'error': f'Missing required field: {field}'}), 400
     
+    # Validate dataset name for new datasets (not versions)
+    if not data.get('parent_id'):
+        name = data.get('name', '').strip()
+        is_valid, error_message = validate_dataset_name(name)
+        if not is_valid:
+            return jsonify({'error': error_message}), 400
+    
     try:
         is_new_version = data.get('parent_id') is not None
         
@@ -219,7 +226,7 @@ def api_create_dataset():
                     metadata_container.replace_item(item=dataset['id'], body=dataset)
         else:
             dataset_id, dataset = DatasetModel.create(
-                name=data['name'],
+                name=data['name'].strip(),
                 description=data['description'],
                 tags=data['tags'] if isinstance(data['tags'], list) else [data['tags']],
                 created_by=user.username,
